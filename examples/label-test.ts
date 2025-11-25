@@ -27,7 +27,7 @@ async function labelExample() {
       return $`What is 42 + 58? Use the add tool.`;
     },
     {
-      model: 'openai:gpt-4o-mini',
+      model: 'large',
       system: ['You are a helpful math assistant.'],
       label: 'my-test-label', // This will show in UI and save to .genagent/my-test-label.json
     }

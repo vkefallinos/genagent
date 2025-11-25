@@ -23,6 +23,40 @@ import { loadPlugins } from './plugins/loader.js';
 dotenvConfig();
 
 /**
+ * Resolves model aliases from environment variables.
+ * If the model string contains a colon, it's returned as-is.
+ * Otherwise, it's treated as an alias and resolved from GEN_MODEL_{ALIAS} env var.
+ *
+ * @param model - Model string (either "provider:modelId" or alias like "large")
+ * @returns Resolved model string in "provider:modelId" format
+ *
+ * @example
+ * // With GEN_MODEL_LARGE=openai:gpt-4 in .env
+ * resolveModelAlias('large') // Returns 'openai:gpt-4'
+ * resolveModelAlias('openai:gpt-4') // Returns 'openai:gpt-4' (already resolved)
+ */
+function resolveModelAlias(model: string): string {
+  // If model already contains ':', it's in provider:modelId format
+  if (model.includes(':')) {
+    return model;
+  }
+
+  // Treat as alias - look up in environment variables
+  const envKey = `GEN_MODEL_${model.toUpperCase()}`;
+  const resolvedModel = process.env[envKey];
+
+  if (!resolvedModel) {
+    throw new Error(
+      `Model alias "${model}" not found. ` +
+      `Please define ${envKey} in your .env file with format "provider:modelId" ` +
+      `(e.g., ${envKey}=openai:gpt-4)`
+    );
+  }
+
+  return resolvedModel;
+}
+
+/**
  * Saves the agent state to .genagent/<label>.json
  */
 async function saveStateToFile(state: AgentState): Promise<void> {
@@ -106,8 +140,11 @@ export async function runPrompt<T extends z.ZodSchema = z.ZodAny>(
   renderUI();
 
   try {
+    // Resolve model alias if needed
+    const resolvedModel = resolveModelAlias(options.model);
+
     // Parse model string (format: provider:modelId)
-    const [provider, modelId] = options.model.split(':');
+    const [provider, modelId] = resolvedModel.split(':');
     if (!provider || !modelId) {
       throw new Error('Model must be in format "provider:modelId" (e.g., "openai:gpt-4")');
     }
@@ -322,6 +359,9 @@ export async function runPrompt<T extends z.ZodSchema = z.ZodAny>(
     throw error;
   }
 }
+
+// Export model alias resolver
+export { resolveModelAlias };
 
 // Re-export types for consumers
 export * from './types.js';

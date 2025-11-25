@@ -26,7 +26,7 @@ async function basicHookExample() {
       return $`What do you know about me?`;
     },
     {
-      model: 'openai:gpt-4o-mini',
+      model: 'large',
       system: ['You are a helpful assistant.'],
     }
   );
@@ -62,7 +62,7 @@ async function filterHookExample() {
       return $`What do you remember about me?`;
     },
     {
-      model: 'openai:gpt-4o-mini',
+      model: 'large',
       system: ['You are a helpful assistant with selective memory.'],
     }
   );
@@ -106,7 +106,7 @@ async function multipleHooksExample() {
       return $`Continue our conversation about TypeScript`;
     },
     {
-      model: 'openai:gpt-4o-mini',
+      model: 'large',
       system: ['You are a programming tutor.'],
     }
   );
@@ -135,7 +135,7 @@ async function noOpHookExample() {
       return $`Please answer my question`;
     },
     {
-      model: 'openai:gpt-4o-mini',
+      model: 'large',
       system: ['You are a math tutor.'],
     }
   );
@@ -173,7 +173,7 @@ async function pluginHookExample() {
       return $`Tell me a short joke`;
     },
     {
-      model: 'openai:gpt-4o-mini',
+      model: 'large',
       system: ['You are a comedian.'],
       plugins: [loggingPlugin],
     }

@@ -21,12 +21,15 @@ You'll also need to install your AI provider of choice:
 
 ```bash
 # For OpenAI
-npm install openai
+npm install @ai-sdk/openai
 
 # For Anthropic
-npm install @anthropic-ai/sdk
+npm install @ai-sdk/anthropic
 
-# For other providers, check AI SDK documentation
+# For Google
+npm install @ai-sdk/google
+
+# For other providers, check AI SDK documentation at https://sdk.vercel.ai/providers
 ```
 
 ## Quick Start
@@ -293,7 +296,7 @@ export ANTHROPIC_API_KEY=your_key_here
 
 ### OpenAI-Compatible Providers
 
-GenAgent supports custom OpenAI-compatible API providers like OpenRouter, Z.AI, and others. Configure them using environment variables:
+GenAgent supports custom OpenAI-compatible API providers like OpenRouter, Z.AI, and others. These are **alternative to** the standard AI SDK providers and don't require installing additional npm packages - just configure them using environment variables:
 
 **1. Create a `.env` file in your project root:**
 

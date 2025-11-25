@@ -16,6 +16,7 @@ import {
 } from './types.js';
 import { createCustomProviderModel } from './providers.js';
 import { createSchemaInstructions, formatValidationError } from './schema-utils.js';
+import { loadPlugins } from './plugins/loader.js';
 
 // Load environment variables from .env file
 dotenvConfig();
@@ -78,6 +79,10 @@ export async function runPrompt<T extends z.ZodSchema = z.ZodAny>(
 
   // Create context and execute prompt function
   const ctx = createContext(messages, tools);
+
+  // Load plugins if provided
+  const pluginSystemPrompts = options.plugins ? loadPlugins(ctx, options.plugins) : [];
+
   const promptResult = await promptFn(ctx);
   state.currentPrompt = promptResult;
 
@@ -136,7 +141,10 @@ export async function runPrompt<T extends z.ZodSchema = z.ZodAny>(
     });
 
     // Add schema instructions to system prompts if responseSchema is provided
-    const systemPrompts = options.system ? [...options.system] : [];
+    const systemPrompts = [
+      ...pluginSystemPrompts,
+      ...(options.system ? options.system : [])
+    ];
     if (options.responseSchema) {
       systemPrompts.push(createSchemaInstructions(options.responseSchema));
     }
@@ -302,3 +310,4 @@ export async function runPrompt<T extends z.ZodSchema = z.ZodAny>(
 
 // Re-export types for consumers
 export * from './types.js';
+export * from './plugins/types.js';

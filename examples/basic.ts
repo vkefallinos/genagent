@@ -21,16 +21,16 @@ async function basicExample() {
 }
 
 /**
- * Example with conversation history using def()
+ * Example with conversation history using defMessage()
  */
 async function conversationExample() {
   console.log('\n\n=== Conversation Example ===\n');
 
   const result = await runPrompt(
-    async ({ def, $ }) => {
-      def('user', 'My name is Alice');
-      def('assistant', 'Nice to meet you, Alice!');
-      def('user', 'I like programming in TypeScript');
+    async ({ defMessage, $ }) => {
+      defMessage('user', 'My name is Alice');
+      defMessage('assistant', 'Nice to meet you, Alice!');
+      defMessage('user', 'I like programming in TypeScript');
 
       return $`What is my name and what do I like?`;
     },
@@ -138,10 +138,10 @@ async function complexExample() {
   });
 
   const result = await runPrompt(
-    async ({ def, defTool, $ }) => {
+    async ({ defMessage, defTool, $ }) => {
       // Set up conversation context
-      def('system', 'You are a math tutor who explains your reasoning.');
-      def('user', 'I need help with calculations');
+      defMessage('system', 'You are a math tutor who explains your reasoning.');
+      defMessage('user', 'I need help with calculations');
 
       // Define tools
       defTool(
@@ -181,11 +181,38 @@ async function complexExample() {
   console.log('\nFinal result:', result);
 }
 
+/**
+ * Example using def() for variable references
+ */
+async function variableExample() {
+  console.log('\n\n=== Variable Reference Example ===\n');
+
+  const result = await runPrompt(
+    async ({ def, $ }) => {
+      // Define variables that can be referenced in prompts
+      def('MY_PLAN', 'First, analyze the requirements. Then, design the solution. Finally, implement and test.');
+      def('PROJECT_NAME', 'GenAgent AI Library');
+      def('GUIDELINES', 'Use TypeScript best practices and ensure type safety throughout.');
+
+      return $`I'm working on $PROJECT_NAME. Here's my plan: $MY_PLAN
+
+Please provide feedback on this approach. Keep in mind: $GUIDELINES`;
+    },
+    {
+      model: 'openai:gpt-4o-mini',
+      system: ['You are a helpful software development advisor.'],
+    }
+  );
+
+  console.log('\nFinal result:', result);
+}
+
 // Run examples
 async function main() {
   try {
     await basicExample();
     await conversationExample();
+    await variableExample();
     await toolExample();
     await structuredResponseExample();
     await complexExample();

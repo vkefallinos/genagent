@@ -64,9 +64,14 @@ The main function to create and run an AI agent.
 
 A function that receives a context object and returns the prompt string. The context provides:
 
-- **`def(name, content)`** - Define a message in the conversation
+- **`defMessage(name, content)`** - Define a message in the conversation
   - `name`: Role name ('user', 'assistant', 'system')
   - `content`: Message content
+
+- **`def(variableName, content)`** - Define a variable that can be referenced in prompts using `$VARIABLE_NAME`
+  - `variableName`: Variable name (used as `$VARIABLE_NAME` in prompts)
+  - `content`: Variable content that will be substituted
+  - Automatically adds system instructions about variable usage on first call
 
 - **`defTool(name, description, schema, fn)`** - Define a tool the agent can use
   - `name`: Tool name
@@ -76,6 +81,7 @@ A function that receives a context object and returns the prompt string. The con
 
 - **`$(strings, ...values)`** - Template literal tag for building prompts
   - Allows string interpolation in prompts
+  - Automatically replaces `$VARIABLE_NAME` references with content from `def()` calls
 
 **`options: RunPromptOptions`**
 
@@ -98,15 +104,37 @@ Configuration object:
 
 ```typescript
 const result = await runPrompt(
-  async ({ def, $ }) => {
-    def('user', 'My name is Alice');
-    def('assistant', 'Nice to meet you, Alice!');
+  async ({ defMessage, $ }) => {
+    defMessage('user', 'My name is Alice');
+    defMessage('assistant', 'Nice to meet you, Alice!');
 
     return $`What is my name?`;
   },
   {
     model: 'openai:gpt-4o-mini',
     system: ['You are a helpful assistant with good memory.'],
+  }
+);
+```
+
+### Variable References
+
+```typescript
+const result = await runPrompt(
+  async ({ def, $ }) => {
+    // Define reusable variables
+    def('MY_PLAN', 'First analyze requirements, then design, finally implement.');
+    def('PROJECT_NAME', 'GenAgent AI Library');
+    def('GUIDELINES', 'Use TypeScript best practices.');
+
+    // Reference variables using $VARIABLE_NAME syntax
+    return $`I'm working on $PROJECT_NAME. My plan: $MY_PLAN
+
+Please review this approach. Guidelines: $GUIDELINES`;
+  },
+  {
+    model: 'openai:gpt-4o-mini',
+    system: ['You are a software development advisor.'],
   }
 );
 ```
@@ -214,9 +242,9 @@ const responseSchema = z.object({
 
 async function planProject(projectDescription: string) {
   return await runPrompt(
-    async ({ def, defTool, $ }) => {
+    async ({ defMessage, defTool, $ }) => {
       // Add conversation context
-      def('system', 'You are an expert project planner.');
+      defMessage('system', 'You are an expert project planner.');
 
       // Define tool to check calendar
       defTool(

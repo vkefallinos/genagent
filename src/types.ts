@@ -14,6 +14,7 @@ export interface AgentOptions {
   responseSchema?: z.ZodSchema;
   system?: string[];
   plugins?: Plugin[];
+  headless?: boolean;
 }
 
 export interface AgentContext extends PromptContext {
@@ -73,6 +74,7 @@ export interface RunPromptOptions {
   system?: string[];
   label?: string;
   plugins?: Plugin[];
+  headless?: boolean;
 }
 
 export interface AgentState {

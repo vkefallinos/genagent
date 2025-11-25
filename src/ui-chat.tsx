@@ -21,6 +21,7 @@ interface AgentChatCLIProps {
   system?: string[];
   label?: string;
   plugins?: any[];
+  headless?: boolean;
   onComplete?: (response: any) => void;
   onError?: (error: Error) => void;
 }
@@ -32,6 +33,7 @@ const AgentChatCLI: React.FC<AgentChatCLIProps> = ({
   system = [],
   label = 'agent',
   plugins = [],
+  headless = false,
   onComplete,
   onError
 }) => {
@@ -401,6 +403,11 @@ const AgentChatCLI: React.FC<AgentChatCLIProps> = ({
     }
   };
 
+  // In headless mode, don't render UI
+  if (headless) {
+    return null;
+  }
+
   return (
     <ChatContainer
       messages={chatState.chatMessages}
@@ -424,6 +431,23 @@ export function runChatPrompt(
   options: AgentOptions & { label?: string } = { model: 'gpt-4o-mini' }
 ): Promise<any> {
   return new Promise((resolve, reject) => {
+    // In headless mode, don't render UI at all
+    if (options.headless) {
+      // Import and use the regular runPrompt for headless execution
+      import('./index.js').then(({ runPrompt }) => {
+        runPrompt(promptFn, {
+          model: options.model || 'gpt-4o-mini',
+          responseSchema: options.responseSchema,
+          system: options.system,
+          label: options.label,
+          plugins: options.plugins
+        })
+          .then(resolve)
+          .catch(reject);
+      });
+      return;
+    }
+
     const { unmount } = render(
       <AgentChatCLI
         promptFn={promptFn}

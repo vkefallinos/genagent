@@ -20,7 +20,8 @@ import { z } from 'zod';
  * - Ctrl+C: Cancel/Exit
  */
 
-const result = await runChatPrompt(
+(async () => {
+  const result = await runChatPrompt(
   async ({ defMessage, def, defTool, $ }) => {
     // Define a tool for demonstration
     defTool(
@@ -72,5 +73,6 @@ const result = await runChatPrompt(
   }
 );
 
-console.log('\n✅ Chat session completed!');
-console.log('Result:', JSON.stringify(result, null, 2));
+  console.log('\n✅ Chat session completed!');
+  console.log('Result:', JSON.stringify(result, null, 2));
+})();

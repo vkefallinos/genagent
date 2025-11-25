@@ -3,6 +3,8 @@ import { render } from 'ink';
 import React from 'react';
 import { z } from 'zod';
 import { config as dotenvConfig } from 'dotenv';
+import { mkdir, writeFile } from 'fs/promises';
+import { join } from 'path';
 import { createContext } from './context.js';
 import { AgentUI } from './ui.js';
 import {
@@ -16,6 +18,23 @@ import { createCustomProviderModel } from './providers.js';
 
 // Load environment variables from .env file
 dotenvConfig();
+
+/**
+ * Saves the agent state to .genagent/<label>.json
+ */
+async function saveStateToFile(state: AgentState): Promise<void> {
+  if (!state.label) return;
+
+  try {
+    const dir = '.genagent';
+    await mkdir(dir, { recursive: true });
+
+    const filePath = join(dir, `${state.label}.json`);
+    await writeFile(filePath, JSON.stringify(state, null, 2), 'utf-8');
+  } catch (error) {
+    console.error('Failed to save state to file:', error);
+  }
+}
 
 /**
  * Creates and runs an AI agent with the specified prompt and configuration.
@@ -52,6 +71,7 @@ export async function runPrompt<T extends z.ZodSchema = z.ZodAny>(
     tools: [],
     currentPrompt: '',
     toolCalls: [],
+    label: options.label,
   };
 
   // Create context and execute prompt function
@@ -190,6 +210,9 @@ export async function runPrompt<T extends z.ZodSchema = z.ZodAny>(
     state.response = finalResponse;
     renderUI();
 
+    // Save state to file
+    await saveStateToFile(state);
+
     // Wait a bit to show final state
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
@@ -202,6 +225,9 @@ export async function runPrompt<T extends z.ZodSchema = z.ZodAny>(
   } catch (error) {
     state.error = error instanceof Error ? error.message : String(error);
     renderUI();
+
+    // Save state to file (including error)
+    await saveStateToFile(state);
 
     // Wait a bit to show error
     await new Promise((resolve) => setTimeout(resolve, 2000));

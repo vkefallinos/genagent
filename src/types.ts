@@ -28,6 +28,7 @@ export interface RunPromptOptions {
   responseSchema?: z.ZodSchema;
   model: string;
   system?: string[];
+  label?: string;
 }
 
 export interface AgentState {
@@ -36,6 +37,7 @@ export interface AgentState {
   currentPrompt: string;
   response?: any;
   error?: string;
+  label?: string;
   toolCalls: Array<{
     tool: string;
     args: any;

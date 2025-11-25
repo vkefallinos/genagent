@@ -68,6 +68,7 @@ export interface AgentState {
   response?: any;
   error?: string;
   label?: string;
+  streamingText?: string;
   toolCalls: Array<{
     tool: string;
     args: any;

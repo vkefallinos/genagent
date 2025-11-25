@@ -1,4 +1,4 @@
-import { generateText, tool as aiTool } from 'ai';
+import { streamText, tool as aiTool } from 'ai';
 import { z } from 'zod';
 import { AgentState, ToolDefinition, MessageContent, MessageHistoryHook } from './types.js';
 import { createCustomProviderModel } from './providers.js';
@@ -162,7 +162,7 @@ export async function executeAgent(options: ExecuteAgentOptions): Promise<any> {
   let currentMessages = [...conversationMessages];
 
   for (let attempt = 0; attempt <= maxValidationRetries; attempt++) {
-    const response = await generateText({
+    const result = await streamText({
       model: modelInstance,
       messages: currentMessages,
       system: systemPrompts.join('\n\n'),
@@ -170,19 +170,30 @@ export async function executeAgent(options: ExecuteAgentOptions): Promise<any> {
       maxSteps: 10,
     });
 
+    // Stream the text chunks and update state in real-time
+    let streamedText = '';
+    for await (const textPart of result.textStream) {
+      streamedText += textPart;
+      state.streamingText = streamedText;
+      onStateUpdate();
+    }
+
+    // Get the final complete text
+    const finalText = await result.text;
+
     // If no schema validation is required, return the response text
     if (!responseSchema) {
-      return response.text;
+      return finalText;
     }
 
     // Attempt to parse and validate against schema
     try {
       let parsed;
       try {
-        parsed = JSON.parse(response.text);
+        parsed = JSON.parse(finalText);
       } catch {
         // If parsing fails, try to extract JSON from text
-        const jsonMatch = response.text.match(/\{[\s\S]*\}/);
+        const jsonMatch = finalText.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           parsed = JSON.parse(jsonMatch[0]);
         } else {
@@ -207,7 +218,7 @@ export async function executeAgent(options: ExecuteAgentOptions): Promise<any> {
 
       state.validationAttempts.push({
         attempt: attempt + 1,
-        response: response.text,
+        response: finalText,
         error: validationError,
       });
       onStateUpdate();
@@ -235,7 +246,7 @@ export async function executeAgent(options: ExecuteAgentOptions): Promise<any> {
         },
         {
           role: 'assistant' as const,
-          content: response.text,
+          content: finalText,
         },
         {
           role: 'user' as const,

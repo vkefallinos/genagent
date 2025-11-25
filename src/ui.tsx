@@ -80,7 +80,7 @@ export const AgentUI: React.FC<AgentUIProps> = ({ state, onComplete }) => {
     <Box flexDirection="column" padding={1}>
       <Box borderStyle="round" borderColor="cyan" paddingX={1}>
         <Text bold color="cyan">
-          🤖 GenAgent
+          🤖 GenAgent{state.label ? ` - ${state.label}` : ''}
         </Text>
       </Box>
 

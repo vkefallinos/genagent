@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Text, Newline } from 'ink';
+import { Box, Text, Newline, useInput } from 'ink';
 import { AgentState } from './types.js';
 
 interface AgentUIProps {
@@ -7,17 +7,68 @@ interface AgentUIProps {
   onComplete?: () => void;
 }
 
-export const AgentUI: React.FC<AgentUIProps> = ({ state, onComplete }) => {
-  const [displayedMessages, setDisplayedMessages] = useState<number>(0);
+interface MessageModalProps {
+  message: { name: string; content: string };
+  onClose: () => void;
+}
 
-  useEffect(() => {
-    if (displayedMessages < state.messages.length) {
-      const timer = setTimeout(() => {
-        setDisplayedMessages(displayedMessages + 1);
-      }, 100);
-      return () => clearTimeout(timer);
+const MessageModal: React.FC<MessageModalProps> = ({ message, onClose }) => {
+  useInput((input, key) => {
+    if (key.escape || input === 'q') {
+      onClose();
     }
-  }, [displayedMessages, state.messages.length]);
+  });
+
+  return (
+    <Box
+      position="absolute"
+      width="100%"
+      height="100%"
+      flexDirection="column"
+      padding={2}
+      borderStyle="double"
+      borderColor="cyan"
+    >
+      <Box flexDirection="column" marginBottom={1}>
+        <Text color="cyan" bold>
+          📝 Message Details
+        </Text>
+        <Text dimColor>(Press ESC or 'q' to close)</Text>
+      </Box>
+
+      <Box flexDirection="column" marginBottom={1}>
+        <Text color="blue" bold>
+          From: {message.name}
+        </Text>
+      </Box>
+
+      <Box flexDirection="column" paddingX={1}>
+        <Text color="yellow" bold>
+          Content:
+        </Text>
+        <Text>{message.content}</Text>
+      </Box>
+    </Box>
+  );
+};
+
+export const AgentUI: React.FC<AgentUIProps> = ({ state, onComplete }) => {
+  const [selectedIndex, setSelectedIndex] = useState<number>(0);
+  const [showModal, setShowModal] = useState<boolean>(false);
+
+  useInput((input, key) => {
+    if (showModal) {
+      return; // Modal handles its own input
+    }
+
+    if (key.upArrow && selectedIndex > 0) {
+      setSelectedIndex(selectedIndex - 1);
+    } else if (key.downArrow && selectedIndex < state.messages.length - 1) {
+      setSelectedIndex(selectedIndex + 1);
+    } else if (key.return && state.messages.length > 0) {
+      setShowModal(true);
+    }
+  });
 
   useEffect(() => {
     if (state.response && onComplete) {
@@ -44,14 +95,29 @@ export const AgentUI: React.FC<AgentUIProps> = ({ state, onComplete }) => {
         </Box>
       )}
 
-      {state.messages.slice(0, displayedMessages).map((msg, idx) => (
-        <Box key={idx} flexDirection="column" marginBottom={1}>
-          <Text color="blue" bold>
-            ▸ {msg.name}:
+      {state.messages.length > 0 && (
+        <Box flexDirection="column" marginBottom={1}>
+          <Text color="green" bold>
+            💬 Messages: (Use ↑↓ to navigate, Enter to view details)
           </Text>
-          <Text>{msg.content}</Text>
         </Box>
-      ))}
+      )}
+
+      {state.messages.map((msg, idx) => {
+        const isSelected = idx === selectedIndex;
+        const truncatedContent = msg.content.length > 80
+          ? msg.content.substring(0, 80) + '...'
+          : msg.content;
+
+        return (
+          <Box key={idx} flexDirection="column" marginBottom={1}>
+            <Text color={isSelected ? "cyan" : "blue"} bold backgroundColor={isSelected ? "blue" : undefined}>
+              {isSelected ? '► ' : '  '}▸ {msg.name}:
+            </Text>
+            <Text dimColor={!isSelected}>{truncatedContent}</Text>
+          </Box>
+        );
+      })}
 
       {state.tools.length > 0 && (
         <Box flexDirection="column" marginBottom={1}>
@@ -106,6 +172,13 @@ export const AgentUI: React.FC<AgentUIProps> = ({ state, onComplete }) => {
           </Text>
           <Text>{state.error}</Text>
         </Box>
+      )}
+
+      {showModal && state.messages[selectedIndex] && (
+        <MessageModal
+          message={state.messages[selectedIndex]}
+          onClose={() => setShowModal(false)}
+        />
       )}
     </Box>
   );

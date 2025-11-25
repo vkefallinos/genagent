@@ -70,8 +70,7 @@ export async function loadModelInstance(provider: string, modelId: string): Prom
  */
 export function convertToolsToAIFormat(
   tools: ToolDefinition[],
-  state: AgentState,
-  onStateUpdate: () => void
+  onToolCall: (toolCall: { tool: string; args: any; result?: any; error?: string }) => void
 ): Record<string, any> {
   const aiTools: Record<string, any> = {};
 
@@ -86,17 +85,20 @@ export function convertToolsToAIFormat(
           result: undefined as any,
           error: undefined as string | undefined,
         };
-        state.toolCalls.push(toolCall);
-        onStateUpdate();
+
+        // Notify that tool call started
+        onToolCall({ ...toolCall });
 
         try {
           const result = await t.execute(args);
           toolCall.result = result;
-          onStateUpdate();
+          // Notify that tool call completed
+          onToolCall({ ...toolCall });
           return result;
         } catch (error) {
           toolCall.error = error instanceof Error ? error.message : String(error);
-          onStateUpdate();
+          // Notify that tool call failed
+          onToolCall({ ...toolCall });
           throw error;
         }
       },
@@ -139,6 +141,8 @@ export interface ExecuteAgentOptions {
   promptResult: string;
   transformedMessages: MessageContent[];
   onStateUpdate: () => void;
+  onStreamingTextUpdate: (text: string) => void;
+  onValidationAttempt: (attempt: { attempt: number; response: string; error: string }) => void;
 }
 
 /**
@@ -156,6 +160,8 @@ export async function executeAgent(options: ExecuteAgentOptions): Promise<any> {
     promptResult,
     transformedMessages,
     onStateUpdate,
+    onStreamingTextUpdate,
+    onValidationAttempt,
   } = options;
 
   const maxValidationRetries = 3;
@@ -174,8 +180,7 @@ export async function executeAgent(options: ExecuteAgentOptions): Promise<any> {
     let streamedText = '';
     for await (const textPart of result.textStream) {
       streamedText += textPart;
-      state.streamingText = streamedText;
-      onStateUpdate();
+      onStreamingTextUpdate(streamedText);
     }
 
     // Get the final complete text
@@ -212,16 +217,11 @@ export async function executeAgent(options: ExecuteAgentOptions): Promise<any> {
           ? error.message
           : String(error);
 
-      if (!state.validationAttempts) {
-        state.validationAttempts = [];
-      }
-
-      state.validationAttempts.push({
+      onValidationAttempt({
         attempt: attempt + 1,
         response: finalText,
         error: validationError,
       });
-      onStateUpdate();
 
       // If this was the last retry, throw the error
       if (attempt === maxValidationRetries) {

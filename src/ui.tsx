@@ -328,6 +328,38 @@ export const AgentCLI = <T extends z.ZodSchema = z.ZodAny,>(props: AgentCLIProps
     setState((prev) => ({ ...prev }));
   };
 
+  // Callback for streaming text updates
+  const updateStreamingText = (text: string) => {
+    setState((prev) => ({ ...prev, streamingText: text }));
+  };
+
+  // Callback for tool call updates
+  const updateToolCall = (toolCall: { tool: string; args: any; result?: any; error?: string }) => {
+    setState((prev) => {
+      const existingIndex = prev.toolCalls.findIndex(
+        (tc) => tc.tool === toolCall.tool && tc.args === toolCall.args
+      );
+
+      if (existingIndex >= 0) {
+        // Update existing tool call
+        const newToolCalls = [...prev.toolCalls];
+        newToolCalls[existingIndex] = toolCall;
+        return { ...prev, toolCalls: newToolCalls };
+      } else {
+        // Add new tool call
+        return { ...prev, toolCalls: [...prev.toolCalls, toolCall] };
+      }
+    });
+  };
+
+  // Callback for validation attempts
+  const addValidationAttempt = (attempt: { attempt: number; response: string; error: string }) => {
+    setState((prev) => ({
+      ...prev,
+      validationAttempts: [...(prev.validationAttempts || []), attempt],
+    }));
+  };
+
   // Save state to file
   const saveStateToFile = async (currentState: AgentState) => {
     if (!currentState.label) return;
@@ -383,7 +415,7 @@ export const AgentCLI = <T extends z.ZodSchema = z.ZodAny,>(props: AgentCLIProps
         const modelInstance = await loadModelInstance(provider, modelId);
 
         // Convert tools to AI SDK format
-        const aiTools = convertToolsToAIFormat(tools, state, updateState);
+        const aiTools = convertToolsToAIFormat(tools, updateToolCall);
 
         // Add schema instructions to system prompts if responseSchema is provided
         const systemPrompts = [
@@ -410,6 +442,8 @@ export const AgentCLI = <T extends z.ZodSchema = z.ZodAny,>(props: AgentCLIProps
           promptResult,
           transformedMessages,
           onStateUpdate: updateState,
+          onStreamingTextUpdate: updateStreamingText,
+          onValidationAttempt: addValidationAttempt,
         });
 
         // Update state with response and clear streaming text

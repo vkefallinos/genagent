@@ -354,6 +354,9 @@ export const AgentCLI = <T extends z.ZodSchema = z.ZodAny,>(props: AgentCLIProps
       const tools: ToolDefinition[] = [];
       const hooks: MessageHistoryHook[] = [];
 
+      // Create a mutable state object for agent execution
+      let mutableState: AgentState | null = null;
+
       try {
         // Create context and execute prompt function
         const ctx = createContext(messages, tools, hooks);
@@ -363,13 +366,25 @@ export const AgentCLI = <T extends z.ZodSchema = z.ZodAny,>(props: AgentCLIProps
 
         const promptResult = await promptFn(ctx);
 
-        // Update state with prompt and messages
-        setState((prev) => ({
-          ...prev,
-          currentPrompt: promptResult,
+        // Initialize mutable state object
+        mutableState = {
           messages: [...messages],
           tools: [...tools],
-        }));
+          currentPrompt: promptResult,
+          toolCalls: [],
+          label,
+          validationAttempts: [],
+        };
+
+        // Update state callback that references mutableState
+        const updateMutableState = () => {
+          if (mutableState) {
+            setState({ ...mutableState });
+          }
+        };
+
+        // Update state with prompt and messages
+        updateMutableState();
 
         // Resolve model alias
         const resolvedModel = resolveModelAlias(model);
@@ -383,7 +398,7 @@ export const AgentCLI = <T extends z.ZodSchema = z.ZodAny,>(props: AgentCLIProps
         const modelInstance = await loadModelInstance(provider, modelId);
 
         // Convert tools to AI SDK format
-        const aiTools = convertToolsToAIFormat(tools, state, updateState);
+        const aiTools = convertToolsToAIFormat(tools, mutableState, updateMutableState);
 
         // Add schema instructions to system prompts if responseSchema is provided
         const systemPrompts = [
@@ -405,19 +420,18 @@ export const AgentCLI = <T extends z.ZodSchema = z.ZodAny,>(props: AgentCLIProps
           conversationMessages,
           aiTools,
           responseSchema,
-          state,
+          state: mutableState,
           hooks,
           promptResult,
           transformedMessages,
-          onStateUpdate: updateState,
+          onStateUpdate: updateMutableState,
         });
 
         // Update state with response and clear streaming text
-        setState((prev) => {
-          const newState = { ...prev, response: finalResponse, streamingText: undefined };
-          saveStateToFile(newState);
-          return newState;
-        });
+        mutableState.response = finalResponse;
+        mutableState.streamingText = undefined;
+        setState({ ...mutableState });
+        saveStateToFile(mutableState);
 
         // Wait a bit to show final state
         await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -428,11 +442,11 @@ export const AgentCLI = <T extends z.ZodSchema = z.ZodAny,>(props: AgentCLIProps
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
 
-        setState((prev) => {
-          const newState = { ...prev, error: errorMessage };
-          saveStateToFile(newState);
-          return newState;
-        });
+        // Use mutableState if it exists, otherwise use current state
+        const errorState = mutableState || state;
+        errorState.error = errorMessage;
+        setState({ ...errorState });
+        saveStateToFile(errorState);
 
         // Wait a bit to show error
         await new Promise((resolve) => setTimeout(resolve, 2000));

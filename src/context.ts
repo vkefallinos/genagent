@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { PromptContext, MessageContent, ToolDefinition, MessageHistoryHook } from './types.js';
+import { defTaskList as defTaskListImpl } from './task-list.js';
 
 /**
  * Applies all registered hooks to the message history.
@@ -30,7 +31,7 @@ export function createContext(
   const variables = new Map<string, string>();
   let variableInstructionsAdded = false;
 
-  return {
+  const ctx: PromptContext = {
     defMessage: (name: string, content: string) => {
       messages.push({ name, content });
     },
@@ -66,6 +67,10 @@ export function createContext(
       hooks.push(hook);
     },
 
+    defTaskList: (tasks) => {
+      defTaskListImpl(ctx, tasks);
+    },
+
     $: (strings: TemplateStringsArray, ...values: any[]): string => {
       let result = strings.reduce((acc, str, i) => {
         return acc + str + (values[i] !== undefined ? String(values[i]) : '');
@@ -82,4 +87,6 @@ export function createContext(
       return result;
     },
   };
+
+  return ctx;
 }

@@ -291,6 +291,64 @@ export OPENAI_API_KEY=your_key_here
 export ANTHROPIC_API_KEY=your_key_here
 ```
 
+### OpenAI-Compatible Providers
+
+GenAgent supports custom OpenAI-compatible API providers like OpenRouter, Z.AI, and others. Configure them using environment variables:
+
+**1. Create a `.env` file in your project root:**
+
+```bash
+# OpenRouter
+OPENROUTER_API_BASE=https://openrouter.ai/api/v1/
+OPENROUTER_API_KEY=sk-or-v1-...
+OPENROUTER_API_TYPE=openai
+
+# Z.AI
+ZAI_API_KEY=c1f7190...
+ZAI_API_BASE=https://api.z.ai/api/coding/paas/v4
+ZAI_API_TYPE=openai
+```
+
+**2. Use them in your code:**
+
+```typescript
+// OpenRouter
+const result = await runPrompt(
+  async ({ $ }) => $`Your prompt`,
+  {
+    model: 'openrouter:anthropic/claude-3.5-sonnet',
+    system: ['You are a helpful assistant.'],
+  }
+);
+
+// Z.AI
+const result = await runPrompt(
+  async ({ $ }) => $`Your prompt`,
+  {
+    model: 'zai:your-model-id',
+    system: ['You are a helpful assistant.'],
+  }
+);
+```
+
+**Adding new custom providers:**
+
+Follow the pattern `{PROVIDER_NAME}_API_KEY`, `{PROVIDER_NAME}_API_BASE`, and `{PROVIDER_NAME}_API_TYPE=openai`, where `PROVIDER_NAME` is the uppercase version of the provider identifier you'll use in your code.
+
+For example, to add a provider called "myapi":
+
+```bash
+# .env
+MYAPI_API_KEY=your-key
+MYAPI_API_BASE=https://api.myapi.com/v1
+MYAPI_API_TYPE=openai
+```
+
+```typescript
+// Use in code
+model: 'myapi:model-name'
+```
+
 ## TypeScript Support
 
 GenAgent is written in TypeScript and provides excellent type inference:

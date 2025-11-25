@@ -2,6 +2,7 @@ import { generateText, tool as aiTool } from 'ai';
 import { render } from 'ink';
 import React from 'react';
 import { z } from 'zod';
+import { config as dotenvConfig } from 'dotenv';
 import { createContext } from './context.js';
 import { AgentUI } from './ui.js';
 import {
@@ -11,6 +12,10 @@ import {
   ToolDefinition,
   AgentState,
 } from './types.js';
+import { createCustomProviderModel } from './providers.js';
+
+// Load environment variables from .env file
+dotenvConfig();
 
 /**
  * Creates and runs an AI agent with the specified prompt and configuration.
@@ -121,19 +126,28 @@ export async function runPrompt<T extends z.ZodSchema = z.ZodAny>(
 
     // Create model instance dynamically
     let modelInstance;
-    try {
-      // Try to import the provider
-      const providerModule = await import(provider);
-      if (!providerModule[provider]) {
-        throw new Error(`Provider ${provider} not found in module`);
+
+    // First, try to create a custom OpenAI-compatible provider
+    modelInstance = createCustomProviderModel(provider, modelId);
+
+    // If no custom provider, fall back to standard provider import
+    if (!modelInstance) {
+      try {
+        // Try to import the provider
+        const providerModule = await import(provider);
+        if (!providerModule[provider]) {
+          throw new Error(`Provider ${provider} not found in module`);
+        }
+        modelInstance = providerModule[provider](modelId);
+      } catch (error) {
+        throw new Error(
+          `Failed to load model provider "${provider}". ` +
+          `Make sure to install it: npm install ${provider}\n` +
+          `Or configure custom provider in .env with ${provider.toUpperCase()}_API_KEY, ` +
+          `${provider.toUpperCase()}_API_BASE, and ${provider.toUpperCase()}_API_TYPE=openai\n` +
+          `Error: ${error instanceof Error ? error.message : String(error)}`
+        );
       }
-      modelInstance = providerModule[provider](modelId);
-    } catch (error) {
-      throw new Error(
-        `Failed to load model provider "${provider}". ` +
-        `Make sure to install it: npm install ${provider}\n` +
-        `Error: ${error instanceof Error ? error.message : String(error)}`
-      );
     }
 
     // Generate response

@@ -24,6 +24,13 @@ export function loadPlugins(
       );
     }
 
+    // Register all hooks from the plugin
+    if (plugin.hooks) {
+      for (const hook of plugin.hooks) {
+        ctx.defHook(hook);
+      }
+    }
+
     // Collect system prompts
     if (plugin.system) {
       systemPrompts.push(`# ${plugin.name}\n\n${plugin.system}`);

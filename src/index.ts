@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { config as dotenvConfig } from 'dotenv';
 import { mkdir, writeFile } from 'fs/promises';
 import { join } from 'path';
-import { createContext } from './context.js';
+import { createContext, applyMessageHooks } from './context.js';
 import { AgentUI } from './ui.js';
 import {
   PromptContext,
@@ -13,6 +13,7 @@ import {
   MessageContent,
   ToolDefinition,
   AgentState,
+  MessageHistoryHook,
 } from './types.js';
 import { createCustomProviderModel } from './providers.js';
 import { createSchemaInstructions, formatValidationError } from './schema-utils.js';
@@ -68,6 +69,7 @@ export async function runPrompt<T extends z.ZodSchema = z.ZodAny>(
 ): Promise<T extends z.ZodSchema ? z.infer<T> : any> {
   const messages: MessageContent[] = [];
   const tools: ToolDefinition[] = [];
+  const hooks: MessageHistoryHook[] = [];
   const state: AgentState = {
     messages: [],
     tools: [],
@@ -78,7 +80,7 @@ export async function runPrompt<T extends z.ZodSchema = z.ZodAny>(
   };
 
   // Create context and execute prompt function
-  const ctx = createContext(messages, tools);
+  const ctx = createContext(messages, tools, hooks);
 
   // Load plugins if provided
   const pluginSystemPrompts = options.plugins ? loadPlugins(ctx, options.plugins) : [];
@@ -149,9 +151,12 @@ export async function runPrompt<T extends z.ZodSchema = z.ZodAny>(
       systemPrompts.push(createSchemaInstructions(options.responseSchema));
     }
 
+    // Apply message hooks to transform the message history
+    const transformedMessages = applyMessageHooks([...messages], hooks);
+
     // Build conversation messages
     const conversationMessages = [
-      ...messages.map((m) => ({
+      ...transformedMessages.map((m) => ({
         role: (m.name === 'system' ? 'system' : m.name === 'user' ? 'user' : 'assistant') as 'system' | 'user' | 'assistant',
         content: m.content,
       })),
@@ -258,9 +263,19 @@ export async function runPrompt<T extends z.ZodSchema = z.ZodAny>(
           );
         }
 
+        // Apply hooks before preparing retry messages
+        const retryMessages = applyMessageHooks([...transformedMessages], hooks);
+
         // Prepare retry with error feedback
         currentMessages = [
-          ...conversationMessages,
+          ...retryMessages.map((m) => ({
+            role: (m.name === 'system' ? 'system' : m.name === 'user' ? 'user' : 'assistant') as 'system' | 'user' | 'assistant',
+            content: m.content,
+          })),
+          {
+            role: 'user' as const,
+            content: promptResult,
+          },
           {
             role: 'assistant' as const,
             content: response.text,

@@ -1,11 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Text, Newline, useInput } from 'ink';
-import { AgentState } from './types.js';
-
-interface AgentUIProps {
-  state: AgentState;
-  onComplete?: () => void;
-}
+import { z } from 'zod';
+import { mkdir, writeFile } from 'fs/promises';
+import { join } from 'path';
+import { AgentState, PromptContext, ToolDefinition, MessageContent, MessageHistoryHook } from './types.js';
+import { createContext, applyMessageHooks } from './context.js';
+import { loadPlugins } from './plugins/loader.js';
+import { createSchemaInstructions } from './schema-utils.js';
+import {
+  resolveModelAlias,
+  loadModelInstance,
+  convertToolsToAIFormat,
+  buildConversationMessages,
+  executeAgent,
+} from './agent-executor.js';
 
 interface MessageModalProps {
   state: AgentState;
@@ -17,9 +25,8 @@ interface MessageModalProps {
 const MessageModal: React.FC<MessageModalProps> = ({ state, messageIndex, onClose, onNavigate }) => {
   const [scrollOffset, setScrollOffset] = useState(0);
   const message = state.messages[messageIndex];
-  const maxVisibleLines = 20; // Approximate lines visible in terminal
+  const maxVisibleLines = 20;
 
-  // Split content into lines for scrolling
   const contentLines = message.content.split('\n');
   const visibleContent = contentLines.slice(scrollOffset, scrollOffset + maxVisibleLines);
   const canScrollUp = scrollOffset > 0;
@@ -52,7 +59,6 @@ const MessageModal: React.FC<MessageModalProps> = ({ state, messageIndex, onClos
       borderStyle="double"
       borderColor="cyan"
     >
-      {/* Header */}
       <Box flexDirection="column" paddingX={2} paddingTop={1}>
         <Box justifyContent="space-between">
           <Text color="cyan" bold>
@@ -68,14 +74,12 @@ const MessageModal: React.FC<MessageModalProps> = ({ state, messageIndex, onClos
         </Text>
       </Box>
 
-      {/* Message metadata */}
       <Box flexDirection="column" paddingX={2} paddingTop={1}>
         <Text color="blue" bold>
           From: {message.name}
         </Text>
       </Box>
 
-      {/* Message content */}
       <Box flexDirection="column" paddingX={2} paddingTop={1} flexGrow={1}>
         <Text color="yellow" bold>
           Content: {canScrollUp || canScrollDown ? `(line ${scrollOffset + 1}/${contentLines.length})` : ''}
@@ -92,7 +96,6 @@ const MessageModal: React.FC<MessageModalProps> = ({ state, messageIndex, onClos
         )}
       </Box>
 
-      {/* Tool calls section */}
       {state.toolCalls.length > 0 && (
         <Box flexDirection="column" paddingX={2} paddingTop={1} borderTop borderColor="gray">
           <Text color="magenta" bold>
@@ -127,13 +130,17 @@ const MessageModal: React.FC<MessageModalProps> = ({ state, messageIndex, onClos
   );
 };
 
-export const AgentUI: React.FC<AgentUIProps> = ({ state, onComplete }) => {
+interface AgentUIDisplayProps {
+  state: AgentState;
+}
+
+const AgentUIDisplay: React.FC<AgentUIDisplayProps> = ({ state }) => {
   const [selectedIndex, setSelectedIndex] = useState<number>(0);
   const [showModal, setShowModal] = useState<boolean>(false);
 
   useInput((input, key) => {
     if (showModal) {
-      return; // Modal handles its own input
+      return;
     }
 
     if (key.upArrow && selectedIndex > 0) {
@@ -144,12 +151,6 @@ export const AgentUI: React.FC<AgentUIProps> = ({ state, onComplete }) => {
       setShowModal(true);
     }
   });
-
-  useEffect(() => {
-    if (state.response && onComplete) {
-      onComplete();
-    }
-  }, [state.response, onComplete]);
 
   return (
     <Box flexDirection="column" padding={1}>
@@ -283,3 +284,161 @@ export const AgentUI: React.FC<AgentUIProps> = ({ state, onComplete }) => {
     </Box>
   );
 };
+
+export interface AgentCLIProps<T extends z.ZodSchema = z.ZodAny> {
+  promptFn: (ctx: PromptContext) => Promise<string> | string;
+  model: string;
+  responseSchema?: T;
+  system?: string[];
+  label?: string;
+  plugins?: any[];
+  onComplete?: (result: any) => void;
+  onError?: (error: Error) => void;
+}
+
+/**
+ * Main CLI component that manages agent state and orchestrates execution
+ */
+export const AgentCLI = <T extends z.ZodSchema = z.ZodAny,>(props: AgentCLIProps<T>) => {
+  const { promptFn, model, responseSchema, system, label, plugins, onComplete, onError } = props;
+
+  // Agent state managed by React
+  const [state, setState] = useState<AgentState>({
+    messages: [],
+    tools: [],
+    currentPrompt: '',
+    toolCalls: [],
+    label,
+    validationAttempts: [],
+  });
+
+  const [isExecuting, setIsExecuting] = useState(false);
+
+  // Callback to trigger UI updates
+  const updateState = () => {
+    setState((prev) => ({ ...prev }));
+  };
+
+  // Save state to file
+  const saveStateToFile = async (currentState: AgentState) => {
+    if (!currentState.label) return;
+
+    try {
+      const dir = '.genagent';
+      await mkdir(dir, { recursive: true });
+
+      const filePath = join(dir, `${currentState.label}.json`);
+      await writeFile(filePath, JSON.stringify(currentState, null, 2), 'utf-8');
+    } catch (error) {
+      console.error('Failed to save state to file:', error);
+    }
+  };
+
+  // Execute the agent
+  useEffect(() => {
+    if (isExecuting) return;
+
+    const executePrompt = async () => {
+      setIsExecuting(true);
+
+      const messages: MessageContent[] = [];
+      const tools: ToolDefinition[] = [];
+      const hooks: MessageHistoryHook[] = [];
+
+      try {
+        // Create context and execute prompt function
+        const ctx = createContext(messages, tools, hooks);
+
+        // Load plugins if provided
+        const pluginSystemPrompts = plugins ? loadPlugins(ctx, plugins) : [];
+
+        const promptResult = await promptFn(ctx);
+
+        // Update state with prompt and messages
+        setState((prev) => ({
+          ...prev,
+          currentPrompt: promptResult,
+          messages: [...messages],
+          tools: [...tools],
+        }));
+
+        // Resolve model alias
+        const resolvedModel = resolveModelAlias(model);
+        const [provider, modelId] = resolvedModel.split(':');
+
+        if (!provider || !modelId) {
+          throw new Error('Model must be in format "provider:modelId" (e.g., "openai:gpt-4")');
+        }
+
+        // Load model instance
+        const modelInstance = await loadModelInstance(provider, modelId);
+
+        // Convert tools to AI SDK format
+        const aiTools = convertToolsToAIFormat(tools, state, updateState);
+
+        // Add schema instructions to system prompts if responseSchema is provided
+        const systemPrompts = [
+          ...pluginSystemPrompts,
+          ...(system ? system : [])
+        ];
+        if (responseSchema) {
+          systemPrompts.push(createSchemaInstructions(responseSchema));
+        }
+
+        // Build conversation messages
+        const transformedMessages = applyMessageHooks([...messages], hooks);
+        const conversationMessages = buildConversationMessages(messages, hooks, promptResult);
+
+        // Execute agent
+        const finalResponse = await executeAgent({
+          modelInstance,
+          systemPrompts,
+          conversationMessages,
+          aiTools,
+          responseSchema,
+          state,
+          hooks,
+          promptResult,
+          transformedMessages,
+          onStateUpdate: updateState,
+        });
+
+        // Update state with response
+        setState((prev) => {
+          const newState = { ...prev, response: finalResponse };
+          saveStateToFile(newState);
+          return newState;
+        });
+
+        // Wait a bit to show final state
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+
+        if (onComplete) {
+          onComplete(finalResponse);
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+
+        setState((prev) => {
+          const newState = { ...prev, error: errorMessage };
+          saveStateToFile(newState);
+          return newState;
+        });
+
+        // Wait a bit to show error
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+
+        if (onError) {
+          onError(error instanceof Error ? error : new Error(errorMessage));
+        }
+      }
+    };
+
+    executePrompt();
+  }, []);
+
+  return <AgentUIDisplay state={state} />;
+};
+
+// Export for backward compatibility
+export const AgentUI = AgentUIDisplay;

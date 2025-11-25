@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { Plugin } from './plugins/types.js';
+import type { Task } from './task-list.js';
 
 export interface ToolDefinition {
   name: string;
@@ -30,6 +31,7 @@ export interface PromptContext {
     fn: (args: z.infer<T>) => Promise<any> | any
   ) => void;
   defHook: (hook: MessageHistoryHook) => void;
+  defTaskList: (tasks: Task[]) => void;
   $: (strings: TemplateStringsArray, ...values: any[]) => string;
 }
 

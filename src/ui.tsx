@@ -255,6 +255,15 @@ const AgentUIDisplay: React.FC<AgentUIDisplayProps> = ({ state }) => {
         </Box>
       )}
 
+      {state.streamingText && !state.response && (
+        <Box flexDirection="column" marginTop={1} borderStyle="round" borderColor="yellow" paddingX={1}>
+          <Text color="yellow" bold>
+            ⏳ Streaming Response:
+          </Text>
+          <Text>{state.streamingText}</Text>
+        </Box>
+      )}
+
       {state.response && (
         <Box flexDirection="column" marginTop={1} borderStyle="round" borderColor="green" paddingX={1}>
           <Text color="green" bold>
@@ -403,9 +412,9 @@ export const AgentCLI = <T extends z.ZodSchema = z.ZodAny,>(props: AgentCLIProps
           onStateUpdate: updateState,
         });
 
-        // Update state with response
+        // Update state with response and clear streaming text
         setState((prev) => {
-          const newState = { ...prev, response: finalResponse };
+          const newState = { ...prev, response: finalResponse, streamingText: undefined };
           saveStateToFile(newState);
           return newState;
         });

@@ -20,7 +20,7 @@ export function createContext(
       if (!variableInstructionsAdded) {
         messages.push({
           name: 'system',
-          content: 'Variables have been defined in this context and can be referenced using $VARIABLE_NAME syntax. When you see $VARIABLE_NAME in prompts, it refers to the corresponding defined variable content.',
+          content: 'Variables have been defined and will be prepended to the user prompt in the format "VARIABLE_NAME: content". You can reference these variables in your response using the $VARIABLE_NAME syntax shown in the prompt.',
         });
         variableInstructionsAdded = true;
       }
@@ -45,11 +45,13 @@ export function createContext(
         return acc + str + (values[i] !== undefined ? String(values[i]) : '');
       }, '');
 
-      // Replace variable references ($VARIABLE_NAME) with actual content
-      variables.forEach((content, name) => {
-        const regex = new RegExp(`\\$${name}\\b`, 'g');
-        result = result.replace(regex, content);
-      });
+      // Prepend all defined variables to the prompt
+      if (variables.size > 0) {
+        const variableContext = Array.from(variables.entries())
+          .map(([name, content]) => `${name}: ${content}`)
+          .join('\n\n');
+        result = `${variableContext}\n\n${result}`;
+      }
 
       return result;
     },

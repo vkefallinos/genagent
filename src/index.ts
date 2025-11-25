@@ -29,7 +29,7 @@ dotenvConfig();
  * const result = await runPrompt(
  *   async ({ defMessage, def, defTool, $ }) => {
  *     defMessage('user', 'What is 2 + 2?');
- *     def('OPERATION', 'addition');
+ *     def('OPERATION', 'addition');  // Will be prepended as "OPERATION: addition"
  *     defTool('calculate', 'Perform calculation', z.object({ expr: z.string() }),
  *       async ({ expr }) => eval(expr));
  *     return $`Please answer using the calculate tool for $OPERATION`;

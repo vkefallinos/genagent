@@ -105,10 +105,11 @@ const AgentChatCLI: React.FC<AgentChatCLIProps> = ({
             subTools: any[],
             subHooks: any[]
           ) => {
-            // Find the current parent message (last assistant message)
-            const parentMessage = chatState.chatMessages.find(
+            // Find the current parent message (most recent assistant message without a thread)
+            const assistantMessages = chatState.chatMessages.filter(
               (msg) => msg.sender === 'assistant' && !msg.threadId
             );
+            const parentMessage = assistantMessages[assistantMessages.length - 1];
 
             if (!parentMessage) {
               console.warn('No parent message found for thread');
@@ -235,6 +236,18 @@ const AgentChatCLI: React.FC<AgentChatCLIProps> = ({
         };
         actions.addMessage(initialMessage);
 
+        // Add a placeholder assistant message that will be updated during execution
+        // This is needed so defAgent can attach threads to a parent message
+        const assistantMessageId = `msg-${Date.now()}-${Math.random()}`;
+        const assistantMessage: ChatMessage = {
+          id: assistantMessageId,
+          sender: 'assistant',
+          content: '', // Will be updated with streaming text or final result
+          timestamp: new Date(),
+          isStreaming: true
+        };
+        actions.addMessage(assistantMessage);
+
         const state = agentState;
         state.currentPrompt = initialPrompt;
         state.messages = messages;
@@ -242,6 +255,13 @@ const AgentChatCLI: React.FC<AgentChatCLIProps> = ({
 
         const updateState = () => {
           setAgentState({ ...state });
+          // Update the assistant message content with streaming text
+          if (state.streamingText) {
+            actions.updateMessage(assistantMessageId, {
+              content: state.streamingText,
+              isStreaming: true
+            });
+          }
         };
 
         // Resolve model
@@ -279,15 +299,11 @@ const AgentChatCLI: React.FC<AgentChatCLIProps> = ({
           onStateUpdate: updateState
         });
 
-        // Add final response as assistant message
-        const responseMessage: ChatMessage = {
-          id: `msg-${Date.now()}-${Math.random()}`,
-          sender: 'assistant',
+        // Update the assistant message with final result
+        actions.updateMessage(assistantMessageId, {
           content: typeof result === 'string' ? result : JSON.stringify(result, null, 2),
-          timestamp: new Date(),
           isStreaming: false
-        };
-        actions.addMessage(responseMessage);
+        });
 
         state.response = result;
         state.executionState = 'idle';

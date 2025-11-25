@@ -15,6 +15,7 @@ import {
   AgentState,
 } from './types.js';
 import { createCustomProviderModel } from './providers.js';
+import { createSchemaInstructions, formatValidationError } from './schema-utils.js';
 
 // Load environment variables from .env file
 dotenvConfig();
@@ -72,6 +73,7 @@ export async function runPrompt<T extends z.ZodSchema = z.ZodAny>(
     currentPrompt: '',
     toolCalls: [],
     label: options.label,
+    validationAttempts: [],
   };
 
   // Create context and execute prompt function
@@ -133,6 +135,12 @@ export async function runPrompt<T extends z.ZodSchema = z.ZodAny>(
       });
     });
 
+    // Add schema instructions to system prompts if responseSchema is provided
+    const systemPrompts = options.system ? [...options.system] : [];
+    if (options.responseSchema) {
+      systemPrompts.push(createSchemaInstructions(options.responseSchema));
+    }
+
     // Build conversation messages
     const conversationMessages = [
       ...messages.map((m) => ({
@@ -178,33 +186,85 @@ export async function runPrompt<T extends z.ZodSchema = z.ZodAny>(
       }
     }
 
-    // Generate response
-    const response = await generateText({
-      model: modelInstance,
-      messages: conversationMessages,
-      system: options.system?.join('\n\n'),
-      tools: Object.keys(aiTools).length > 0 ? aiTools : undefined,
-      maxSteps: 10,
-    });
-
-    // Parse response according to schema if provided
+    // Generate response with retry logic for schema validation
     let finalResponse;
-    if (options.responseSchema) {
-      try {
-        const parsed = JSON.parse(response.text);
-        finalResponse = options.responseSchema.parse(parsed);
-      } catch (error) {
-        // If parsing fails, try to extract JSON from text
-        const jsonMatch = response.text.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0]);
-          finalResponse = options.responseSchema.parse(parsed);
-        } else {
-          throw new Error(`Failed to parse response according to schema: ${error}`);
-        }
+    const maxValidationRetries = 3;
+    let currentMessages = [...conversationMessages];
+
+    for (let attempt = 0; attempt <= maxValidationRetries; attempt++) {
+      const response = await generateText({
+        model: modelInstance,
+        messages: currentMessages,
+        system: systemPrompts.join('\n\n'),
+        tools: Object.keys(aiTools).length > 0 ? aiTools : undefined,
+        maxSteps: 10,
+      });
+
+      // If no schema validation is required, return the response text
+      if (!options.responseSchema) {
+        finalResponse = response.text;
+        break;
       }
-    } else {
-      finalResponse = response.text;
+
+      // Attempt to parse and validate against schema
+      try {
+        // First try parsing the entire response as JSON
+        let parsed;
+        try {
+          parsed = JSON.parse(response.text);
+        } catch {
+          // If parsing fails, try to extract JSON from text
+          const jsonMatch = response.text.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            parsed = JSON.parse(jsonMatch[0]);
+          } else {
+            throw new Error('Response does not contain valid JSON');
+          }
+        }
+
+        // Validate against schema
+        finalResponse = options.responseSchema.parse(parsed);
+
+        // Validation successful, break out of retry loop
+        break;
+      } catch (error) {
+        // Track validation attempt
+        const validationError = error instanceof z.ZodError
+          ? formatValidationError(error)
+          : error instanceof Error
+            ? error.message
+            : String(error);
+
+        state.validationAttempts!.push({
+          attempt: attempt + 1,
+          response: response.text,
+          error: validationError,
+        });
+        renderUI();
+
+        // If this was the last retry, throw the error
+        if (attempt === maxValidationRetries) {
+          throw new Error(
+            `Failed to get valid response after ${maxValidationRetries + 1} attempts. ` +
+            `Last error: ${validationError}`
+          );
+        }
+
+        // Prepare retry with error feedback
+        currentMessages = [
+          ...conversationMessages,
+          {
+            role: 'assistant' as const,
+            content: response.text,
+          },
+          {
+            role: 'user' as const,
+            content: error instanceof z.ZodError
+              ? formatValidationError(error)
+              : `Your response could not be parsed as valid JSON. Error: ${error instanceof Error ? error.message : String(error)}\n\nPlease provide a valid JSON response matching the required schema.`,
+          },
+        ];
+      }
     }
 
     state.response = finalResponse;

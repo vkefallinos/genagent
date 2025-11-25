@@ -44,4 +44,9 @@ export interface AgentState {
     result?: any;
     error?: string;
   }>;
+  validationAttempts?: Array<{
+    attempt: number;
+    response: string;
+    error: string;
+  }>;
 }

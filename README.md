@@ -189,7 +189,13 @@ const result = await runPrompt(
 );
 ```
 
-### Structured Responses
+### Structured Responses with Automatic Validation
+
+When you provide a `responseSchema`, GenAgent automatically:
+1. ✨ **Injects schema instructions** into the system prompt
+2. 🔍 **Validates** the LLM response against your Zod schema
+3. 🔄 **Retries automatically** (up to 3 times) with detailed error feedback if validation fails
+4. ✅ **Returns type-safe data** once validation succeeds
 
 ```typescript
 const responseSchema = z.object({
@@ -200,14 +206,12 @@ const responseSchema = z.object({
 
 const result = await runPrompt(
   async ({ $ }) => {
-    return $`Analyze this text: "I love TypeScript! It makes coding so much better."
-
-    Return JSON with: summary, sentiment, and keywords`;
+    return $`Analyze this text: "I love TypeScript! It makes coding so much better."`;
   },
   {
     model: 'openai:gpt-4o-mini',
     responseSchema,
-    system: ['You are a text analysis expert. Always return valid JSON.'],
+    system: ['You are a text analysis expert.'],
   }
 );
 
@@ -215,6 +219,16 @@ const result = await runPrompt(
 console.log(result.sentiment); // 'positive'
 console.log(result.keywords);  // string[]
 ```
+
+**What happens behind the scenes:**
+
+1. GenAgent adds JSON schema instructions to your system prompt
+2. The LLM responds with JSON
+3. If validation fails, GenAgent shows the error to the LLM and asks it to fix the response
+4. This repeats up to 3 times until the response is valid
+5. You get a fully validated, type-safe result!
+
+The terminal UI displays validation attempts in real-time, showing you exactly what errors occurred and how the LLM corrected them.
 
 ### Template Literals with Variables
 
@@ -303,10 +317,11 @@ GenAgent automatically displays a beautiful terminal UI showing:
 - 💬 Conversation messages
 - 🔧 Available tools
 - ⚡ Tool executions in real-time
+- 🔄 Schema validation retries (when using responseSchema)
 - ✅ Final response
 - ❌ Errors (if any)
 
-The UI updates in real-time as your agent processes the request.
+The UI updates in real-time as your agent processes the request, including live feedback when schema validation fails and the agent retries.
 
 ## Model Providers
 
@@ -439,14 +454,15 @@ Errors are also displayed in the terminal UI with details.
 
 Check out the `examples/` directory for more:
 
-- `examples/quickstart.ts` - Simple weather agent
 - `examples/basic.ts` - Comprehensive examples of all features
+- `examples/schema-validation.ts` - Demonstrates automatic schema validation and retry logic
 
 Run examples:
 
 ```bash
 npm run build
-node dist/examples/quickstart.js
+node dist/examples/basic.js
+node dist/examples/schema-validation.js
 ```
 
 ## Contributing

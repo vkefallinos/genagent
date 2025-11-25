@@ -9,6 +9,17 @@ export interface ToolDefinition {
   execute: (...args: any[]) => Promise<any> | any;
 }
 
+export interface AgentOptions {
+  model?: string;
+  responseSchema?: z.ZodSchema;
+  system?: string[];
+  plugins?: Plugin[];
+}
+
+export interface AgentContext extends PromptContext {
+  args: any;
+}
+
 export interface MessageContent {
   name: string;
   content: string;
@@ -29,6 +40,13 @@ export interface PromptContext {
     description: string,
     schema: T,
     fn: (args: z.infer<T>) => Promise<any> | any
+  ) => void;
+  defAgent: <T extends z.ZodSchema, R = any>(
+    name: string,
+    description: string,
+    inputSchema: T,
+    fn: (args: z.infer<T>, ctx: AgentContext) => Promise<string> | string,
+    options?: AgentOptions
   ) => void;
   defHook: (hook: MessageHistoryHook) => void;
   defTaskList: (tasks: Task[]) => void;

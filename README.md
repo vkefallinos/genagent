@@ -6,6 +6,7 @@ A powerful TypeScript library for creating AI agents with beautiful terminal UIs
 
 ✨ **Simple API** - Clean, intuitive interface for defining agents
 🛠️ **Tool Support** - Easy tool definition with Zod schemas
+🔌 **Plugin System** - Extensible plugin architecture for reusable tools and prompts
 📊 **Structured Responses** - Type-safe responses with Zod validation
 🎨 **Beautiful UI** - Real-time terminal interface powered by Ink
 🔄 **Conversation Management** - Built-in message history handling
@@ -187,6 +188,65 @@ const result = await runPrompt(
     system: ['You are a helpful assistant. Use tools when appropriate.'],
   }
 );
+```
+
+### Using Plugins
+
+Plugins allow you to package tools and system prompts into reusable, composable modules. This makes it easy to share functionality across projects or publish plugins for others to use.
+
+```typescript
+import { runPrompt, definePlugin, tool } from 'genagent';
+import { z } from 'zod';
+
+// Define a plugin
+const calculatorPlugin = definePlugin({
+  name: 'Calculator',
+  system: 'You have access to a calculator for mathematical operations.',
+  tools: [
+    tool(
+      'calculate',
+      'Perform a calculation',
+      z.object({
+        expression: z.string().describe('Math expression like "2 + 2"'),
+      }),
+      async ({ expression }) => {
+        const sanitized = expression.replace(/[^0-9+\-*/().\s]/g, '');
+        const result = Function(`'use strict'; return (${sanitized})`)();
+        return { expression, result, success: true };
+      }
+    ),
+  ],
+});
+
+// Use the plugin
+const result = await runPrompt(
+  async ({ $ }) => {
+    return $`What is 25 * 4?`;
+  },
+  {
+    model: 'openai:gpt-4o-mini',
+    plugins: [calculatorPlugin],
+    system: ['You are a helpful assistant.'],
+  }
+);
+```
+
+**Benefits of plugins:**
+- 📦 Package related tools and prompts together
+- 🔄 Reuse across multiple projects
+- 🤝 Share with the community
+- 🧩 Compose multiple plugins together
+- 🎯 Keep your code organized
+
+For detailed plugin documentation, see [PLUGINS.md](./PLUGINS.md).
+
+Example plugins are available in `examples/plugins/`:
+- `calculator.ts` - Mathematical operations
+- `filesystem.ts` - File operations
+
+Run the plugin example:
+```bash
+npm run dev examples/with-plugins.ts
 ```
 
 ### Structured Responses with Automatic Validation
@@ -456,6 +516,9 @@ Check out the `examples/` directory for more:
 
 - `examples/basic.ts` - Comprehensive examples of all features
 - `examples/schema-validation.ts` - Demonstrates automatic schema validation and retry logic
+- `examples/with-plugins.ts` - Plugin system demonstration
+- `examples/plugins/calculator.ts` - Calculator plugin example
+- `examples/plugins/filesystem.ts` - Filesystem plugin example
 
 Run examples:
 
@@ -463,6 +526,7 @@ Run examples:
 npm run build
 node dist/examples/basic.js
 node dist/examples/schema-validation.js
+node dist/examples/with-plugins.js
 ```
 
 ## Contributing

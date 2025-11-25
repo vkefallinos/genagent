@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { Plugin } from './plugins/types.js';
 
 export interface ToolDefinition {
   name: string;
@@ -29,6 +30,7 @@ export interface RunPromptOptions {
   model: string;
   system?: string[];
   label?: string;
+  plugins?: Plugin[];
 }
 
 export interface AgentState {

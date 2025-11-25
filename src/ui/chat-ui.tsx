@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { render } from 'ink';
-import { ChatContainer } from './components';
-import { useChatState } from './hooks/useChatState';
-import { ChatMessage, Thread, ToolCall } from './types/chat';
+import { ChatContainer } from './components.js';
+import { useChatState } from './hooks/useChatState.js';
+import { ChatMessage, Thread, ToolCall } from './types/chat.js';
 import { AgentState } from '../types';
 
 interface ChatUIProps {

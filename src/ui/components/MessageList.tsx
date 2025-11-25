@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { ChatMessage, Thread } from '../types/chat';
-import { Message } from './Message';
-import { StreamingIndicator } from './StreamingIndicator';
+import { Message } from './Message.js';
+import { StreamingIndicator } from './StreamingIndicator.js';
 
 interface MessageListProps {
   messages: ChatMessage[];

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import { ChatMessage } from '../types/chat';
-import { ToolCallIndicator } from './ToolCallIndicator';
+import { ToolCallIndicator } from './ToolCallIndicator.js';
 
 interface ThreadMessageProps {
   message: ChatMessage;

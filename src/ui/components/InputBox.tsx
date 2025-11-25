@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import TextInput from 'ink-text-input';
-import { PauseButton } from './PauseButton';
+import { PauseButton } from './PauseButton.js';
 
 interface InputBoxProps {
   onSendMessage: (message: string) => void;

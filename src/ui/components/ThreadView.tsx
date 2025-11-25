@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { Thread, ChatMessage } from '../types/chat';
-import { ThreadMessage } from './ThreadMessage';
+import { ThreadMessage } from './ThreadMessage.js';
 
 interface ThreadViewProps {
   thread: Thread;

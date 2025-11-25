@@ -23,7 +23,10 @@ import { z } from 'zod';
             b: z.number().describe('Second number')
           }),
           async ({ a, b }) => {
-            return { result: a + b };
+            console.log(`[Tool] add called with a=${a}, b=${b}`);
+            const result = { result: a + b };
+            console.log(`[Tool] add result:`, result);
+            return result;
           }
         );
 
@@ -36,10 +39,13 @@ import { z } from 'zod';
             numbers: z.array(z.number()).describe('Numbers to use in calculation')
           }),
           async ({ operation, numbers }, ctx) => {
+            console.log(`[defAgent] calculator called with operation="${operation}", numbers=${numbers}`);
             // This subagent will appear as a thread in the chat UI!
             ctx.defMessage('system', 'You are a calculator assistant. Use the add tool to perform calculations.');
 
-            return $`Please ${operation} these numbers: ${numbers.join(', ')}. Use the add tool.`;
+            const prompt = $`Please ${operation} these numbers: ${numbers.join(', ')}. Use the add tool.`;
+            console.log(`[defAgent] calculator prompt:`, prompt);
+            return prompt;
           },
           {
             model: 'gpt-4o-mini',
@@ -81,8 +87,13 @@ import { z } from 'zod';
 
     console.log('\n✅ Chat completed successfully!');
     console.log('Result:', JSON.stringify(result, null, 2));
+    console.log('Result type:', typeof result);
+    console.log('Result is empty:', result === '' || result === null || result === undefined);
   } catch (error) {
     console.error('\n❌ Error:', error);
+    if (error instanceof Error) {
+      console.error('Stack:', error.stack);
+    }
     process.exit(1);
   }
 })();

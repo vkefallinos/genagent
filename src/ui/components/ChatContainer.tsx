@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Box, useInput, useApp } from 'ink';
-import { Header } from './Header';
-import { MessageList } from './MessageList';
-import { ThreadView } from './ThreadView';
-import { InputBox } from './InputBox';
+import { Header } from './Header.js';
+import { MessageList } from './MessageList.js';
+import { ThreadView } from './ThreadView.js';
+import { InputBox } from './InputBox.js';
 import { ChatMessage, Thread } from '../types/chat';
 
 interface ChatContainerProps {

@@ -32,6 +32,18 @@ export interface MessageContent {
  */
 export type MessageHistoryHook = (messages: MessageContent[]) => MessageContent[] | undefined | void;
 
+export interface SubagentThreadHandler {
+  createThread: (
+    name: string,
+    description: string,
+    prompt: string,
+    runOptions: any,
+    subMessages: MessageContent[],
+    subTools: ToolDefinition[],
+    subHooks: MessageHistoryHook[]
+  ) => Promise<any>;
+}
+
 export interface PromptContext {
   defMessage: (name: string, content: string) => void;
   def: (variableName: string, content: string) => void;
@@ -51,6 +63,8 @@ export interface PromptContext {
   defHook: (hook: MessageHistoryHook) => void;
   defTaskList: (tasks: Task[]) => void;
   $: (strings: TemplateStringsArray, ...values: any[]) => string;
+  // Internal: thread handler for chat UI mode
+  _threadHandler?: SubagentThreadHandler;
 }
 
 export interface RunPromptOptions {

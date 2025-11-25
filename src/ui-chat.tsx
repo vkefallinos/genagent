@@ -92,8 +92,133 @@ const AgentChatCLI: React.FC<AgentChatCLIProps> = ({
         const tools: any[] = [];
         const hooks: any[] = [];
 
-        // Create context
-        const ctx = createContext(messages, tools, hooks);
+        // Create thread handler for subagents
+        const threadHandler = {
+          createThread: async (
+            name: string,
+            description: string,
+            prompt: string,
+            runOptions: any,
+            subMessages: any[],
+            subTools: any[],
+            subHooks: any[]
+          ) => {
+            // Find the current parent message (last assistant message)
+            const parentMessage = chatState.chatMessages.find(
+              (msg) => msg.sender === 'assistant' && !msg.threadId
+            );
+
+            if (!parentMessage) {
+              console.warn('No parent message found for thread');
+              // Fallback to runPrompt
+              const { runPrompt } = await import('./index.js');
+              return await runPrompt(
+                async (ctx) => {
+                  return prompt;
+                },
+                runOptions
+              );
+            }
+
+            // Create a new thread
+            const threadId = `thread-${Date.now()}-${Math.random()}`;
+            const thread: any = {
+              id: threadId,
+              subagentType: name,
+              subagentPrompt: description,
+              messages: [],
+              toolCalls: [],
+              status: 'running',
+              startTime: new Date(),
+              parentMessageId: parentMessage.id
+            };
+
+            // Add thread to state
+            actions.createThread(thread);
+
+            // Link thread to parent message
+            actions.updateMessage(parentMessage.id, { threadId });
+
+            try {
+              // Resolve model and execute subagent
+              const resolvedModel = resolveModelAlias(runOptions.model);
+              const [provider, modelId] = resolvedModel.split(':');
+              const modelInstance = await loadModelInstance(provider, modelId);
+
+              const systemPrompts = runOptions.system || [];
+              if (runOptions.responseSchema) {
+                systemPrompts.push(createSchemaInstructions(runOptions.responseSchema));
+              }
+
+              // Create subagent state
+              const subState: any = {
+                messages: subMessages,
+                tools: subTools,
+                currentPrompt: prompt,
+                toolCalls: [],
+                streamingText: undefined
+              };
+
+              const updateSubState = () => {
+                // Update thread messages when substate changes
+                if (subState.streamingText) {
+                  const lastThreadMessage = thread.messages[thread.messages.length - 1];
+                  if (lastThreadMessage) {
+                    actions.updateThread(threadId, {
+                      messages: thread.messages.map((msg: any, idx: number) =>
+                        idx === thread.messages.length - 1
+                          ? { ...msg, content: subState.streamingText, isStreaming: true }
+                          : msg
+                      )
+                    });
+                  }
+                }
+              };
+
+              // Convert tools
+              const aiTools = convertToolsToAIFormat(subState.tools, subState, updateSubState);
+
+              // Build conversation
+              const conversationMessages = buildConversationMessages(
+                subState.messages,
+                subHooks,
+                prompt
+              );
+
+              // Execute subagent
+              const result = await executeAgent({
+                modelInstance,
+                systemPrompts,
+                conversationMessages,
+                aiTools,
+                responseSchema: runOptions.responseSchema,
+                state: subState,
+                hooks: subHooks,
+                promptResult: prompt,
+                transformedMessages: applyMessageHooks([...subState.messages], subHooks),
+                onStateUpdate: updateSubState
+              });
+
+              // Update thread as completed
+              actions.updateThread(threadId, {
+                status: 'completed',
+                endTime: new Date()
+              });
+
+              return result;
+            } catch (error) {
+              // Update thread as failed
+              actions.updateThread(threadId, {
+                status: 'failed',
+                endTime: new Date()
+              });
+              throw error;
+            }
+          }
+        };
+
+        // Create context with thread handler
+        const ctx = createContext(messages, tools, hooks, threadHandler);
 
         // Execute user's prompt function
         const initialPrompt = await promptFn(ctx);

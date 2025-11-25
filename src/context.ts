@@ -26,12 +26,15 @@ export function applyMessageHooks(
 export function createContext(
   messages: MessageContent[],
   tools: ToolDefinition[],
-  hooks: MessageHistoryHook[]
+  hooks: MessageHistoryHook[],
+  threadHandler?: any
 ): PromptContext {
   const variables = new Map<string, string>();
   let variableInstructionsAdded = false;
 
   const ctx: PromptContext = {
+    _threadHandler: threadHandler,
+
     defMessage: (name: string, content: string) => {
       messages.push({ name, content });
     },
@@ -76,9 +79,6 @@ export function createContext(
         description,
         schema: inputSchema,
         execute: async (args: z.infer<T>) => {
-          // Dynamically import runPrompt to avoid circular dependency
-          const { runPrompt } = await import('./index.js');
-
           // Create the agent's prompt function
           const agentPromptFn = async (agentCtx: PromptContext) => {
             // Create an extended context that includes the input args
@@ -101,7 +101,36 @@ export function createContext(
             label: `agent-${name}`,
           };
 
-          // Run the agent and return its result
+          // If we have a thread handler (chat UI mode), use it
+          if (ctx._threadHandler) {
+            // Create a sub-context for the subagent
+            const subMessages: MessageContent[] = [];
+            const subTools: ToolDefinition[] = [];
+            const subHooks: MessageHistoryHook[] = [];
+            const subCtx = createContext(subMessages, subTools, subHooks, ctx._threadHandler);
+
+            const extendedCtx = {
+              ...subCtx,
+              args,
+            } as AgentContext;
+
+            const prompt = await fn(args, extendedCtx);
+
+            // Create thread and return result
+            const result = await ctx._threadHandler.createThread(
+              name,
+              description,
+              prompt,
+              runOptions,
+              subMessages,
+              subTools,
+              subHooks
+            );
+            return result;
+          }
+
+          // Fallback to runPrompt for non-chat UI mode
+          const { runPrompt } = await import('./index.js');
           const result = await runPrompt(agentPromptFn, runOptions);
           return result;
         },

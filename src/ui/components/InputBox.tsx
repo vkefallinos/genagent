@@ -38,6 +38,21 @@ export const InputBox: React.FC<InputBoxProps> = ({
       return;
     }
 
+    // Handle left arrow for pause, right arrow for resume
+    if (key.leftArrow && isExecuting && !pauseButtonFocused) {
+      if (!isPaused) {
+        onPause();
+      }
+      return;
+    }
+
+    if (key.rightArrow && isExecuting && !pauseButtonFocused) {
+      if (isPaused) {
+        onResume();
+      }
+      return;
+    }
+
     // Handle Tab to toggle focus
     if (key.tab) {
       setPauseButtonFocused(!pauseButtonFocused);
@@ -52,6 +67,13 @@ export const InputBox: React.FC<InputBoxProps> = ({
         } else {
           onPause();
         }
+      }
+      // Also handle left/right arrows when pause button is focused
+      if (key.leftArrow) {
+        if (!isPaused) onPause();
+      }
+      if (key.rightArrow) {
+        if (isPaused) onResume();
       }
       return;
     }
@@ -89,7 +111,7 @@ export const InputBox: React.FC<InputBoxProps> = ({
           </Text>
         )}
         <Text dimColor>
-          {focused && !pauseButtonFocused ? 'Enter to send · Ctrl+P to pause/resume' : 'Tab to switch focus'}
+          {focused && !pauseButtonFocused ? 'Enter to send · ←→ pause/resume · Ctrl+P pause/resume' : 'Tab to switch focus · ←→ pause/resume'}
         </Text>
       </Box>
     </Box>

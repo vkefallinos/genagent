@@ -133,8 +133,15 @@ export async function runPrompt<T extends z.ZodSchema = z.ZodAny>(
     // If no custom provider, fall back to standard provider import
     if (!modelInstance) {
       try {
-        // Try to import the provider
-        const providerModule = await import(provider);
+        // Try standard AI SDK provider first (@ai-sdk/{provider})
+        let providerModule;
+        try {
+          providerModule = await import(`@ai-sdk/${provider}`);
+        } catch {
+          // Fall back to direct provider import
+          providerModule = await import(provider);
+        }
+
         if (!providerModule[provider]) {
           throw new Error(`Provider ${provider} not found in module`);
         }
@@ -142,7 +149,7 @@ export async function runPrompt<T extends z.ZodSchema = z.ZodAny>(
       } catch (error) {
         throw new Error(
           `Failed to load model provider "${provider}". ` +
-          `Make sure to install it: npm install ${provider}\n` +
+          `Make sure to install it: npm install @ai-sdk/${provider}\n` +
           `Or configure custom provider in .env with ${provider.toUpperCase()}_API_KEY, ` +
           `${provider.toUpperCase()}_API_BASE, and ${provider.toUpperCase()}_API_TYPE=openai\n` +
           `Error: ${error instanceof Error ? error.message : String(error)}`

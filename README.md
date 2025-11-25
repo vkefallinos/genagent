@@ -70,7 +70,8 @@ A function that receives a context object and returns the prompt string. The con
 
 - **`def(variableName, content)`** - Define a variable that can be referenced in prompts using `$VARIABLE_NAME`
   - `variableName`: Variable name (used as `$VARIABLE_NAME` in prompts)
-  - `content`: Variable content that will be substituted
+  - `content`: Variable content that will be prepended to the prompt
+  - Variables are automatically prepended in the format `VARIABLE_NAME: content`
   - Automatically adds system instructions about variable usage on first call
 
 - **`defTool(name, description, schema, fn)`** - Define a tool the agent can use
@@ -81,7 +82,7 @@ A function that receives a context object and returns the prompt string. The con
 
 - **`$(strings, ...values)`** - Template literal tag for building prompts
   - Allows string interpolation in prompts
-  - Automatically replaces `$VARIABLE_NAME` references with content from `def()` calls
+  - Automatically prepends all variables defined with `def()` to the prompt
 
 **`options: RunPromptOptions`**
 
@@ -122,12 +123,12 @@ const result = await runPrompt(
 ```typescript
 const result = await runPrompt(
   async ({ def, $ }) => {
-    // Define reusable variables
+    // Define reusable variables that will be prepended to the prompt
     def('MY_PLAN', 'First analyze requirements, then design, finally implement.');
     def('PROJECT_NAME', 'GenAgent AI Library');
     def('GUIDELINES', 'Use TypeScript best practices.');
 
-    // Reference variables using $VARIABLE_NAME syntax
+    // The variables are prepended automatically, so you can reference them with $VARIABLE_NAME
     return $`I'm working on $PROJECT_NAME. My plan: $MY_PLAN
 
 Please review this approach. Guidelines: $GUIDELINES`;
@@ -137,6 +138,16 @@ Please review this approach. Guidelines: $GUIDELINES`;
     system: ['You are a software development advisor.'],
   }
 );
+
+// The actual prompt sent to the AI will be:
+// MY_PLAN: First analyze requirements, then design, finally implement.
+//
+// PROJECT_NAME: GenAgent AI Library
+//
+// GUIDELINES: Use TypeScript best practices.
+//
+// I'm working on $PROJECT_NAME. My plan: $MY_PLAN
+// Please review this approach. Guidelines: $GUIDELINES
 ```
 
 ### Using Tools

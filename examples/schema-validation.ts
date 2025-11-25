@@ -33,7 +33,7 @@ async function main() {
         return $`Create a profile for a fictional software engineer named Alex who loves coding and lives in San Francisco.`;
       },
       {
-        model: 'openai:gpt-4o-mini',
+        model: 'large',
         responseSchema: PersonSchema,
         system: [
           'You are a helpful assistant that creates detailed person profiles.',

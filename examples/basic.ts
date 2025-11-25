@@ -12,7 +12,7 @@ async function basicExample() {
       return $`What is the capital of France? Answer in one word.`;
     },
     {
-      model: 'openai:gpt-4o-mini',
+      model: 'large',
       system: ['You are a helpful geography assistant.'],
     }
   );
@@ -35,7 +35,7 @@ async function conversationExample() {
       return $`What is my name and what do I like?`;
     },
     {
-      model: 'openai:gpt-4o-mini',
+      model: 'large',
       system: ['You are a helpful assistant with good memory.'],
     }
   );
@@ -83,7 +83,7 @@ async function toolExample() {
       return $`What is 25 * 4 + 10? Also, what's the weather like in Paris?`;
     },
     {
-      model: 'openai:gpt-4o-mini',
+      model: 'large',
       system: ['You are a helpful assistant. Use tools when needed.'],
     }
   );
@@ -116,7 +116,7 @@ async function structuredResponseExample() {
                 }`;
     },
     {
-      model: 'openai:gpt-4o-mini',
+      model: 'large',
       responseSchema,
       system: ['You are a text analysis expert. Always return valid JSON.'],
     }
@@ -172,7 +172,7 @@ async function complexExample() {
               Return JSON: { "result": <number>, "explanation": "<your explanation>" }`;
     },
     {
-      model: 'openai:gpt-4o-mini',
+      model: 'large',
       responseSchema,
       system: ['Always use the provided tools and explain your steps.'],
     }
@@ -199,7 +199,7 @@ async function variableExample() {
 Please provide feedback on this approach. Keep in mind: $GUIDELINES`;
     },
     {
-      model: 'openai:gpt-4o-mini',
+      model: 'large',
       system: ['You are a helpful software development advisor.'],
     }
   );

@@ -38,7 +38,7 @@ async function weatherAgent() {
       return $`What's the weather like in ${city}? Should I bring an umbrella?`;
     },
     {
-      model: 'openai:gpt-4o-mini',
+      model: 'large',
       system: [
         'You are a helpful weather assistant.',
         'Use the weather tool to get current conditions.',

@@ -28,7 +28,7 @@ Focus specifically on: ${args.focus}
 Provide a concise, factual summary of your findings.`;
       },
       {
-        model: 'gpt-4o-mini',
+        model: 'large',
         system: ['You are a helpful research assistant with expertise in gathering and summarizing information.'],
       }
     );
@@ -56,7 +56,7 @@ Provide insights about:
 3. Suggestions for improvement`;
       },
       {
-        model: 'gpt-4o-mini',
+        model: 'large',
         responseSchema: z.object({
           quality_score: z.number().min(0).max(10),
           issues: z.array(z.string()),
@@ -83,7 +83,7 @@ def fibonacci(n):
 Combine the insights from both agents to provide a comprehensive response.`;
   },
   {
-    model: 'gpt-4o-mini',
+    model: 'large',
   }
 );
 

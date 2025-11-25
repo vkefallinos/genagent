@@ -21,7 +21,7 @@ async function main() {
       return $`What is the square root of 144? Use the available tools to calculate it.`;
     },
     {
-      model: 'openai:gpt-4o-mini',
+      model: 'large',
       plugins: [calculatorPlugin],
       system: ['You are a helpful math assistant.'],
     }
@@ -36,7 +36,7 @@ async function main() {
       return $`List the files in the current directory and tell me how many TypeScript files there are.`;
     },
     {
-      model: 'openai:gpt-4o-mini',
+      model: 'large',
       plugins: [filesystemPlugin],
       system: ['You are a helpful file system assistant.'],
     }
@@ -51,7 +51,7 @@ async function main() {
       return $`First, calculate 25 * 4. Then, create a file called 'result.txt' with the result.`;
     },
     {
-      model: 'openai:gpt-4o-mini',
+      model: 'large',
       plugins: [calculatorPlugin, filesystemPlugin],
       system: ['You are a helpful assistant with math and filesystem capabilities.'],
     }
@@ -72,7 +72,7 @@ async function main() {
       Save all results to a file called 'calculations.txt' in a readable format.`;
     },
     {
-      model: 'openai:gpt-4o-mini',
+      model: 'large',
       plugins: [calculatorPlugin, filesystemPlugin],
       system: [
         'You are a helpful assistant.',

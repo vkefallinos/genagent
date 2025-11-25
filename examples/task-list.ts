@@ -41,7 +41,7 @@ async function basicTaskListExample() {
       return $`Complete all tasks in the task list. Use the finishTask tool to submit each result.`;
     },
     {
-      model: 'openai:gpt-4o-mini',
+      model: 'large',
       system: ['You are a helpful math assistant.'],
     }
   );
@@ -79,7 +79,7 @@ async function stringValidationExample() {
       return $`Complete all tasks in the task list.`;
     },
     {
-      model: 'openai:gpt-4o-mini',
+      model: 'large',
       system: ['You are a friendly assistant.'],
     }
   );
@@ -125,7 +125,7 @@ async function complexValidationExample() {
       return $`Complete all tasks in the task list.`;
     },
     {
-      model: 'openai:gpt-4o-mini',
+      model: 'large',
       system: ['You are a helpful assistant.'],
     }
   );
@@ -165,7 +165,7 @@ async function validationRetryExample() {
       return $`Complete all tasks. Make sure to follow the validation rules carefully.`;
     },
     {
-      model: 'openai:gpt-4o-mini',
+      model: 'large',
       system: ['You are a helpful assistant.'],
     }
   );

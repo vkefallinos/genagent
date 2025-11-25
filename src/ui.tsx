@@ -231,6 +231,29 @@ export const AgentUI: React.FC<AgentUIProps> = ({ state, onComplete }) => {
         </Box>
       )}
 
+      {state.validationAttempts && state.validationAttempts.length > 0 && (
+        <Box flexDirection="column" marginBottom={1}>
+          <Text color="yellow" bold>
+            🔄 Validation Retries:
+          </Text>
+          {state.validationAttempts.map((attempt, idx) => (
+            <Box key={idx} flexDirection="column" paddingLeft={2} marginTop={1}>
+              <Text color="cyan">
+                Attempt {attempt.attempt}:
+              </Text>
+              <Text color="gray" dimColor>
+                Response: {attempt.response.substring(0, 100)}
+                {attempt.response.length > 100 && '...'}
+              </Text>
+              <Text color="red">
+                ✗ {attempt.error.split('\n')[0]}
+                {attempt.error.split('\n').length > 1 && '...'}
+              </Text>
+            </Box>
+          ))}
+        </Box>
+      )}
+
       {state.response && (
         <Box flexDirection="column" marginTop={1} borderStyle="round" borderColor="green" paddingX={1}>
           <Text color="green" bold>

@@ -8,14 +8,38 @@ interface AgentUIProps {
 }
 
 interface MessageModalProps {
-  message: { name: string; content: string };
+  state: AgentState;
+  messageIndex: number;
   onClose: () => void;
+  onNavigate: (newIndex: number) => void;
 }
 
-const MessageModal: React.FC<MessageModalProps> = ({ message, onClose }) => {
+const MessageModal: React.FC<MessageModalProps> = ({ state, messageIndex, onClose, onNavigate }) => {
+  const [scrollOffset, setScrollOffset] = useState(0);
+  const message = state.messages[messageIndex];
+  const maxVisibleLines = 20; // Approximate lines visible in terminal
+
+  // Split content into lines for scrolling
+  const contentLines = message.content.split('\n');
+  const visibleContent = contentLines.slice(scrollOffset, scrollOffset + maxVisibleLines);
+  const canScrollUp = scrollOffset > 0;
+  const canScrollDown = scrollOffset + maxVisibleLines < contentLines.length;
+  const canGoLeft = messageIndex > 0;
+  const canGoRight = messageIndex < state.messages.length - 1;
+
   useInput((input, key) => {
     if (key.escape || input === 'q') {
       onClose();
+    } else if (key.upArrow && canScrollUp) {
+      setScrollOffset(Math.max(0, scrollOffset - 1));
+    } else if (key.downArrow && canScrollDown) {
+      setScrollOffset(scrollOffset + 1);
+    } else if (key.leftArrow && canGoLeft) {
+      setScrollOffset(0);
+      onNavigate(messageIndex - 1);
+    } else if (key.rightArrow && canGoRight) {
+      setScrollOffset(0);
+      onNavigate(messageIndex + 1);
     }
   });
 
@@ -25,29 +49,80 @@ const MessageModal: React.FC<MessageModalProps> = ({ message, onClose }) => {
       width="100%"
       height="100%"
       flexDirection="column"
-      padding={2}
       borderStyle="double"
       borderColor="cyan"
     >
-      <Box flexDirection="column" marginBottom={1}>
-        <Text color="cyan" bold>
-          📝 Message Details
+      {/* Header */}
+      <Box flexDirection="column" paddingX={2} paddingTop={1}>
+        <Box justifyContent="space-between">
+          <Text color="cyan" bold>
+            📝 Message Details [{messageIndex + 1}/{state.messages.length}]
+          </Text>
+          <Text dimColor>
+            {canGoLeft && '← '} ESC/q: close {canGoRight && ' →'}
+          </Text>
+        </Box>
+        <Text dimColor>
+          {canScrollUp && '↑ '} {canScrollDown && '↓ scroll '}
+          {canGoLeft && ' ← prev'} {canGoRight && ' next →'}
         </Text>
-        <Text dimColor>(Press ESC or 'q' to close)</Text>
       </Box>
 
-      <Box flexDirection="column" marginBottom={1}>
+      {/* Message metadata */}
+      <Box flexDirection="column" paddingX={2} paddingTop={1}>
         <Text color="blue" bold>
           From: {message.name}
         </Text>
       </Box>
 
-      <Box flexDirection="column" paddingX={1}>
+      {/* Message content */}
+      <Box flexDirection="column" paddingX={2} paddingTop={1} flexGrow={1}>
         <Text color="yellow" bold>
-          Content:
+          Content: {canScrollUp || canScrollDown ? `(line ${scrollOffset + 1}/${contentLines.length})` : ''}
         </Text>
-        <Text>{message.content}</Text>
+        <Box flexDirection="column" paddingTop={1}>
+          {visibleContent.map((line, idx) => (
+            <Text key={idx}>{line}</Text>
+          ))}
+        </Box>
+        {canScrollDown && (
+          <Text color="gray" italic>
+            ... ({contentLines.length - scrollOffset - maxVisibleLines} more lines)
+          </Text>
+        )}
       </Box>
+
+      {/* Tool calls section */}
+      {state.toolCalls.length > 0 && (
+        <Box flexDirection="column" paddingX={2} paddingTop={1} borderTop borderColor="gray">
+          <Text color="magenta" bold>
+            🔧 Tool Calls ({state.toolCalls.length}):
+          </Text>
+          {state.toolCalls.map((call, idx) => (
+            <Box key={idx} flexDirection="column" paddingLeft={2} paddingTop={1}>
+              <Text color="cyan">
+                {idx + 1}. {call.tool}
+              </Text>
+              <Text color="gray" dimColor>
+                Args: {JSON.stringify(call.args)}
+              </Text>
+              {call.result && (
+                <Text color="green">
+                  ✓ Result: {typeof call.result === 'string'
+                    ? call.result.substring(0, 100)
+                    : JSON.stringify(call.result).substring(0, 100)}
+                  {(typeof call.result === 'string' ? call.result : JSON.stringify(call.result)).length > 100 && '...'}
+                </Text>
+              )}
+              {call.error && (
+                <Text color="red">
+                  ✗ Error: {call.error}
+                </Text>
+              )}
+            </Box>
+          ))}
+        </Box>
+      )}
     </Box>
   );
 };
@@ -176,8 +251,10 @@ export const AgentUI: React.FC<AgentUIProps> = ({ state, onComplete }) => {
 
       {showModal && state.messages[selectedIndex] && (
         <MessageModal
-          message={state.messages[selectedIndex]}
+          state={state}
+          messageIndex={selectedIndex}
           onClose={() => setShowModal(false)}
+          onNavigate={(newIndex) => setSelectedIndex(newIndex)}
         />
       )}
     </Box>

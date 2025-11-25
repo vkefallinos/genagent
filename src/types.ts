@@ -13,6 +13,13 @@ export interface MessageContent {
   content: string;
 }
 
+/**
+ * Hook function type for message history transformations.
+ * Receives the current message history and can return a modified version.
+ * If undefined is returned, the messages remain unchanged.
+ */
+export type MessageHistoryHook = (messages: MessageContent[]) => MessageContent[] | undefined | void;
+
 export interface PromptContext {
   defMessage: (name: string, content: string) => void;
   def: (variableName: string, content: string) => void;
@@ -22,6 +29,7 @@ export interface PromptContext {
     schema: T,
     fn: (args: z.infer<T>) => Promise<any> | any
   ) => void;
+  defHook: (hook: MessageHistoryHook) => void;
   $: (strings: TemplateStringsArray, ...values: any[]) => string;
 }
 

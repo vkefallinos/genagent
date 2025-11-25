@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { MessageContent, MessageHistoryHook } from '../types.js';
 
 /**
  * Represents a tool that can be used by the AI agent
@@ -28,6 +29,11 @@ export interface Plugin {
    * Array of tools provided by this plugin
    */
   tools: PluginTool[];
+
+  /**
+   * Optional array of message history hooks that transform messages before LLM calls
+   */
+  hooks?: MessageHistoryHook[];
 }
 
 /**
@@ -45,6 +51,15 @@ export function tool(
     schema,
     execute,
   };
+}
+
+/**
+ * Helper function to create a message history hook
+ */
+export function hook(
+  fn: (messages: MessageContent[]) => MessageContent[] | undefined | void
+): MessageHistoryHook {
+  return fn;
 }
 
 /**

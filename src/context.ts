@@ -1,9 +1,31 @@
 import { z } from 'zod';
-import { PromptContext, MessageContent, ToolDefinition } from './types.js';
+import { PromptContext, MessageContent, ToolDefinition, MessageHistoryHook } from './types.js';
+
+/**
+ * Applies all registered hooks to the message history.
+ * Each hook receives the current message history and can return a modified version.
+ * If a hook returns undefined or void, the messages remain unchanged.
+ */
+export function applyMessageHooks(
+  messages: MessageContent[],
+  hooks: MessageHistoryHook[]
+): MessageContent[] {
+  let currentMessages = messages;
+
+  for (const hook of hooks) {
+    const result = hook(currentMessages);
+    if (result !== undefined) {
+      currentMessages = result;
+    }
+  }
+
+  return currentMessages;
+}
 
 export function createContext(
   messages: MessageContent[],
-  tools: ToolDefinition[]
+  tools: ToolDefinition[],
+  hooks: MessageHistoryHook[]
 ): PromptContext {
   const variables = new Map<string, string>();
   let variableInstructionsAdded = false;
@@ -38,6 +60,10 @@ export function createContext(
         schema,
         execute: fn,
       });
+    },
+
+    defHook: (hook: MessageHistoryHook) => {
+      hooks.push(hook);
     },
 
     $: (strings: TemplateStringsArray, ...values: any[]): string => {

@@ -1,0 +1,196 @@
+import { generateText, tool as aiTool } from 'ai';
+import { render } from 'ink';
+import React from 'react';
+import { z } from 'zod';
+import { createContext } from './context.js';
+import { AgentUI } from './ui.js';
+import {
+  PromptContext,
+  RunPromptOptions,
+  MessageContent,
+  ToolDefinition,
+  AgentState,
+} from './types.js';
+
+/**
+ * Creates and runs an AI agent with the specified prompt and configuration.
+ *
+ * @param promptFn - Callback function that receives context helpers (def, defTool, $)
+ * @param options - Configuration options including model, responseSchema, and system prompts
+ * @returns Promise resolving to the agent's structured response
+ *
+ * @example
+ * ```typescript
+ * const result = await runPrompt(
+ *   async ({ def, defTool, $ }) => {
+ *     def('user', 'What is 2 + 2?');
+ *     defTool('calculate', 'Perform calculation', z.object({ expr: z.string() }),
+ *       async ({ expr }) => eval(expr));
+ *     return $`Please answer using the calculate tool`;
+ *   },
+ *   {
+ *     model: 'openai:gpt-4',
+ *     system: ['You are a helpful math assistant']
+ *   }
+ * );
+ * ```
+ */
+export async function runPrompt<T extends z.ZodSchema = z.ZodAny>(
+  promptFn: (ctx: PromptContext) => Promise<string> | string,
+  options: RunPromptOptions & { responseSchema?: T }
+): Promise<T extends z.ZodSchema ? z.infer<T> : any> {
+  const messages: MessageContent[] = [];
+  const tools: ToolDefinition[] = [];
+  const state: AgentState = {
+    messages: [],
+    tools: [],
+    currentPrompt: '',
+    toolCalls: [],
+  };
+
+  // Create context and execute prompt function
+  const ctx = createContext(messages, tools);
+  const promptResult = await promptFn(ctx);
+  state.currentPrompt = promptResult;
+
+  // Copy messages to state for UI
+  state.messages = [...messages];
+  state.tools = [...tools];
+
+  // Render UI
+  let appInstance: any;
+  const renderUI = () => {
+    const element = React.createElement(AgentUI, { state });
+    if (appInstance) {
+      appInstance.rerender(element);
+    } else {
+      appInstance = render(element);
+    }
+  };
+
+  renderUI();
+
+  try {
+    // Parse model string (format: provider:modelId)
+    const [provider, modelId] = options.model.split(':');
+    if (!provider || !modelId) {
+      throw new Error('Model must be in format "provider:modelId" (e.g., "openai:gpt-4")');
+    }
+
+    // Convert tools to AI SDK format
+    const aiTools: Record<string, any> = {};
+    tools.forEach((t) => {
+      aiTools[t.name] = aiTool({
+        description: t.description,
+        parameters: t.schema,
+        execute: async (args) => {
+          const toolCall = {
+            tool: t.name,
+            args,
+            result: undefined as any,
+            error: undefined as string | undefined,
+          };
+          state.toolCalls.push(toolCall);
+          renderUI();
+
+          try {
+            const result = await t.execute(args);
+            toolCall.result = result;
+            renderUI();
+            return result;
+          } catch (error) {
+            toolCall.error = error instanceof Error ? error.message : String(error);
+            renderUI();
+            throw error;
+          }
+        },
+      });
+    });
+
+    // Build conversation messages
+    const conversationMessages = [
+      ...messages.map((m) => ({
+        role: (m.name === 'system' ? 'system' : m.name === 'user' ? 'user' : 'assistant') as 'system' | 'user' | 'assistant',
+        content: m.content,
+      })),
+      {
+        role: 'user' as const,
+        content: promptResult,
+      },
+    ];
+
+    // Create model instance dynamically
+    let modelInstance;
+    try {
+      // Try to import the provider
+      const providerModule = await import(provider);
+      if (!providerModule[provider]) {
+        throw new Error(`Provider ${provider} not found in module`);
+      }
+      modelInstance = providerModule[provider](modelId);
+    } catch (error) {
+      throw new Error(
+        `Failed to load model provider "${provider}". ` +
+        `Make sure to install it: npm install ${provider}\n` +
+        `Error: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+
+    // Generate response
+    const response = await generateText({
+      model: modelInstance,
+      messages: conversationMessages,
+      system: options.system?.join('\n\n'),
+      tools: Object.keys(aiTools).length > 0 ? aiTools : undefined,
+      maxSteps: 10,
+    });
+
+    // Parse response according to schema if provided
+    let finalResponse;
+    if (options.responseSchema) {
+      try {
+        const parsed = JSON.parse(response.text);
+        finalResponse = options.responseSchema.parse(parsed);
+      } catch (error) {
+        // If parsing fails, try to extract JSON from text
+        const jsonMatch = response.text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          finalResponse = options.responseSchema.parse(parsed);
+        } else {
+          throw new Error(`Failed to parse response according to schema: ${error}`);
+        }
+      }
+    } else {
+      finalResponse = response.text;
+    }
+
+    state.response = finalResponse;
+    renderUI();
+
+    // Wait a bit to show final state
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    // Cleanup
+    if (appInstance) {
+      appInstance.unmount();
+    }
+
+    return finalResponse;
+  } catch (error) {
+    state.error = error instanceof Error ? error.message : String(error);
+    renderUI();
+
+    // Wait a bit to show error
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    if (appInstance) {
+      appInstance.unmount();
+    }
+
+    throw error;
+  }
+}
+
+// Re-export types for consumers
+export * from './types.js';

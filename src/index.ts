@@ -20,18 +20,19 @@ dotenvConfig();
 /**
  * Creates and runs an AI agent with the specified prompt and configuration.
  *
- * @param promptFn - Callback function that receives context helpers (def, defTool, $)
+ * @param promptFn - Callback function that receives context helpers (defMessage, def, defTool, $)
  * @param options - Configuration options including model, responseSchema, and system prompts
  * @returns Promise resolving to the agent's structured response
  *
  * @example
  * ```typescript
  * const result = await runPrompt(
- *   async ({ def, defTool, $ }) => {
- *     def('user', 'What is 2 + 2?');
+ *   async ({ defMessage, def, defTool, $ }) => {
+ *     defMessage('user', 'What is 2 + 2?');
+ *     def('OPERATION', 'addition');
  *     defTool('calculate', 'Perform calculation', z.object({ expr: z.string() }),
  *       async ({ expr }) => eval(expr));
- *     return $`Please answer using the calculate tool`;
+ *     return $`Please answer using the calculate tool for $OPERATION`;
  *   },
  *   {
  *     model: 'openai:gpt-4',

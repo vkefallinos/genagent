@@ -5,9 +5,25 @@ export function createContext(
   messages: MessageContent[],
   tools: ToolDefinition[]
 ): PromptContext {
+  const variables = new Map<string, string>();
+  let variableInstructionsAdded = false;
+
   return {
-    def: (name: string, content: string) => {
+    defMessage: (name: string, content: string) => {
       messages.push({ name, content });
+    },
+
+    def: (variableName: string, content: string) => {
+      variables.set(variableName, content);
+
+      // Add system instructions about variable references on first use
+      if (!variableInstructionsAdded) {
+        messages.push({
+          name: 'system',
+          content: 'Variables have been defined in this context and can be referenced using $VARIABLE_NAME syntax. When you see $VARIABLE_NAME in prompts, it refers to the corresponding defined variable content.',
+        });
+        variableInstructionsAdded = true;
+      }
     },
 
     defTool: <T extends z.ZodSchema>(
@@ -25,9 +41,17 @@ export function createContext(
     },
 
     $: (strings: TemplateStringsArray, ...values: any[]): string => {
-      return strings.reduce((result, str, i) => {
-        return result + str + (values[i] !== undefined ? String(values[i]) : '');
+      let result = strings.reduce((acc, str, i) => {
+        return acc + str + (values[i] !== undefined ? String(values[i]) : '');
       }, '');
+
+      // Replace variable references ($VARIABLE_NAME) with actual content
+      variables.forEach((content, name) => {
+        const regex = new RegExp(`\\$${name}\\b`, 'g');
+        result = result.replace(regex, content);
+      });
+
+      return result;
     },
   };
 }

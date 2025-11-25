@@ -13,7 +13,8 @@ export interface MessageContent {
 }
 
 export interface PromptContext {
-  def: (name: string, content: string) => void;
+  defMessage: (name: string, content: string) => void;
+  def: (variableName: string, content: string) => void;
   defTool: <T extends z.ZodSchema>(
     name: string,
     description: string,

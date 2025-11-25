@@ -80,4 +80,16 @@ export interface AgentState {
     response: string;
     error: string;
   }>;
+  // New fields for chat UI
+  isPaused?: boolean;
+  pendingUserMessage?: string;
+  executionState?: 'idle' | 'executing' | 'paused' | 'waiting_for_input';
+}
+
+export interface ExecutionControl {
+  pause: () => void;
+  resume: () => void;
+  isPaused: () => boolean;
+  injectMessage: (message: string) => void;
+  getPendingMessage: () => string | undefined;
 }

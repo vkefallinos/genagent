@@ -326,3 +326,7 @@ export async function runPrompt<T extends z.ZodSchema = z.ZodAny>(
 // Re-export types for consumers
 export * from './types.js';
 export * from './plugins/types.js';
+
+// Re-export host and workspace utilities
+export * as host from './host.js';
+export * as workspace from './workspace.js';

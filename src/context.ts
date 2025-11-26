@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { PromptContext, MessageContent, ToolDefinition, MessageHistoryHook, AgentOptions, AgentContext } from './types.js';
 import { defTaskList as defTaskListImpl } from './task-list.js';
+import { defDynamicTaskList as defDynamicTaskListImpl } from './dynamic-task-list.js';
 
 /**
  * Applies all registered hooks to the message history.
@@ -130,6 +131,10 @@ export function createContext(
 
     defTaskList: (tasks) => {
       defTaskListImpl(ctx, tasks);
+    },
+
+    defDynamicTaskList: () => {
+      defDynamicTaskListImpl(ctx);
     },
 
     $: (strings: TemplateStringsArray, ...values: any[]): string => {

@@ -168,3 +168,8 @@ export async function main() {
     process.exit(1);
   }
 }
+
+// Auto-execute main() when this file is run as the main module
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main();
+}

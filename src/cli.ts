@@ -1,7 +1,43 @@
 #!/usr/bin/env node
 
-import { resolve } from 'path';
+import { resolve, basename } from 'path';
+import { writeFile, mkdir } from 'fs/promises';
+import { existsSync } from 'fs';
 import { runPrompt } from './index.js';
+
+// Generate genagent.d.ts file with type definitions for .gen.ts files
+async function ensureTypeDefinitions() {
+  const typeDefContent = `declare module '*.gen.ts' {
+  import { PromptContext, RunPromptOptions } from 'genagent';
+
+  /**
+   * GenAgent file exports
+   *
+   * Default export must be an async function that accepts PromptContext
+   * Named export 'options' must be a RunPromptOptions object
+   */
+
+  export default function promptFn(ctx: PromptContext): Promise<string> | string;
+  export const options: RunPromptOptions;
+}
+
+declare module '*.gen.js' {
+  import { PromptContext, RunPromptOptions } from 'genagent';
+
+  export default function promptFn(ctx: PromptContext): Promise<string> | string;
+  export const options: RunPromptOptions;
+}`;
+
+  // Check if genagent.d.ts already exists
+  if (!existsSync('genagent.d.ts')) {
+    try {
+      await writeFile('genagent.d.ts', typeDefContent, 'utf-8');
+    } catch (error) {
+      // Silently fail if we can't write the file
+      // This might happen due to permissions, which is fine
+    }
+  }
+}
 
 export async function main() {
   const args = process.argv.slice(2);
@@ -9,21 +45,22 @@ export async function main() {
   if (args.length === 0 || args[0] === '--help' || args[0] === '-h') {
     console.log('GenAgent CLI');
     console.log('');
-    console.log('Usage: genagent run <file>');
+    console.log('Usage: genagent run <file.gen.ts>');
     console.log('');
     console.log('Commands:');
-    console.log('  run <file>       Execute a GenAgent file');
+    console.log('  run <file>       Execute a GenAgent file (.gen.ts or .gen.js)');
     console.log('  --help, -h       Show this help message');
     console.log('');
     console.log('Arguments:');
-    console.log('  <file>           Path to a TypeScript or JavaScript file exporting:');
-    console.log('                   - Default export or promptFn: async function');
+    console.log('  <file>           Path to a GenAgent file with .gen.ts or .gen.js extension');
+    console.log('                   Must export:');
+    console.log('                   - Default export: async function accepting PromptContext');
     console.log('                   - options: RunPromptOptions with model property');
     console.log('');
     console.log('Example:');
-    console.log('  genagent run ./my-agent.ts');
+    console.log('  genagent run ./my-agent.gen.ts');
     console.log('');
-    console.log('Example file (my-agent.ts):');
+    console.log('Example file (my-agent.gen.ts):');
     console.log('  export default async ({ $ }) => {');
     console.log('    return $`Hello World`;');
     console.log('  };');
@@ -31,6 +68,10 @@ export async function main() {
     console.log('  export const options = {');
     console.log('    model: "openai:gpt-4"');
     console.log('  };');
+    console.log('');
+    console.log('Setup:');
+    console.log('  On first run, genagent.d.ts will be created in the current directory');
+    console.log('  Add it to your tsconfig.json to enable type checking in .gen.ts files');
     process.exit(args.length === 0 ? 1 : 0);
   }
 
@@ -38,12 +79,26 @@ export async function main() {
   const filePath = args[1];
 
   if (command !== 'run' || !filePath) {
-    console.error('Usage: genagent run <file>');
+    console.error('Usage: genagent run <file.gen.ts>');
     console.error('Use "genagent --help" for more information');
     process.exit(1);
   }
 
+  // Validate file extension
+  const fileName = basename(filePath);
+  if (!fileName.endsWith('.gen.ts') && !fileName.endsWith('.gen.js')) {
+    console.error(`Error: File must have .gen.ts or .gen.js extension`);
+    console.error(`Got: ${fileName}`);
+    console.error('');
+    console.error('GenAgent files must be named with the .gen.ts or .gen.js extension.');
+    console.error('Example: my-agent.gen.ts');
+    process.exit(1);
+  }
+
   try {
+    // Ensure type definitions exist on first run
+    await ensureTypeDefinitions();
+
     const resolvedPath = resolve(process.cwd(), filePath);
 
     // Dynamic import to load the file
@@ -70,10 +125,10 @@ export async function main() {
 
     if (!promptFn || !options) {
       console.error(
-        'Error: The module must export a promptFn (as default or named export) and options.'
+        'Error: GenAgent file must have default export (async function) and options export.'
       );
       console.error('');
-      console.error('Example export:');
+      console.error('Example my-agent.gen.ts:');
       console.error('');
       console.error('export default async ({ $ }) => {');
       console.error('  return $`Hello World`;');

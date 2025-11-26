@@ -1,7 +1,7 @@
 /**
  * Simple example file for use with the genagent CLI
  *
- * Usage: genagent run ./examples/cli-simple.ts
+ * Usage: genagent run ./examples/cli-simple.gen.ts
  */
 
 import { PromptContext } from '../src/types.js';

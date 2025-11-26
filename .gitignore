@@ -8,3 +8,4 @@ dist/
 *.map
 !examples/*.ts
 !bin/*.js
+!genagent.d.ts

@@ -226,7 +226,7 @@ export function defDynamicTaskList(ctx: PromptContext): void {
    */
   ctx.defTool(
     'completeTask',
-    'Mark a task as completed with a result. The task should be in-progress before completing.',
+    'Mark a task as completed with a result. Can be used on pending or in-progress tasks.',
     z.object({
       taskId: z.string().describe('The ID of the task to complete'),
       result: z.string().describe('The result or outcome of completing the task'),
@@ -242,6 +242,7 @@ export function defDynamicTaskList(ctx: PromptContext): void {
         return `✗ Error: Task ${taskId} is already completed.`;
       }
 
+      // Allow completing pending tasks directly (no need to start first)
       task.status = 'completed';
       task.result = result;
       task.completedAt = Date.now();
@@ -332,7 +333,7 @@ export function defDynamicTaskList(ctx: PromptContext): void {
       name: 'system',
       content: [
         'You are working through a dynamic task list. Each task must be completed.',
-        'Use startTask to begin a task, then completeTask to finish it with a result.',
+        'Use completeTask with the task ID and your result to finish each task.',
         'Focus on the current task below. Previous tasks are summarized for context.',
         'Continue until all tasks are completed.',
       ].join('\n'),
@@ -375,17 +376,27 @@ export function defDynamicTaskList(ctx: PromptContext): void {
     // Add current task prompt (simple and direct like defTaskList)
     if (!allCompleted) {
       let currentTask: DynamicTask | undefined;
+      let isInProgress = false;
 
       if (inProgress.length > 0) {
         currentTask = state.tasks.get(inProgress[0])!;
+        isInProgress = true;
       } else if (pending.length > 0) {
         currentTask = state.tasks.get(pending[0])!;
       }
 
       if (currentTask) {
+        // Add a reminder if task is already in progress
+        if (isInProgress) {
+          newMessages.push({
+            name: 'system',
+            content: `Task ${currentTask.id} is in progress. Complete it using: completeTask({"taskId":"${currentTask.id}","result":"your result here"})`,
+          });
+        }
+
         newMessages.push({
           name: 'user',
-          content: `[Task ${completed + 1}/${total}] ${currentTask.description}`,
+          content: `[${currentTask.id}] ${currentTask.description}`,
         });
       }
     } else {

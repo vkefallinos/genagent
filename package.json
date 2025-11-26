@@ -5,6 +5,9 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",
+  "bin": {
+    "genagent": "./bin/genagent.js"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",

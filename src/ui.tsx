@@ -15,16 +15,20 @@ import {
   executeAgent,
 } from './agent-executor.js';
 import {parse, setOptions} from 'marked';
-import TerminalRenderer, { TerminalRendererOptions } from 'marked-terminal';
+//@ts-ignore - no type definitions available for marked-terminal
+import TerminalRenderer from 'marked-terminal';
 
-export type Props = TerminalRendererOptions & {
+export type Props = {
   children: string;
+  [key: string]: any;
 };
 
 export default function Markdown({ children, ...options }: Props) {
   //@ts-ignore
   setOptions({ renderer: new TerminalRenderer(options) });
-  return <Text>{parse(children).trim()}</Text>;
+  const parsed = parse(children);
+  const text = typeof parsed === 'string' ? parsed : String(parsed);
+  return <Text>{text.trim()}</Text>;
 }
 // Save state to file
 async function saveStateToFile(currentState: AgentState) {

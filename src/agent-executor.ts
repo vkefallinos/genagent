@@ -80,6 +80,7 @@ export function convertToolsToAIFormat(
       description: t.description,
       parameters: t.schema,
       execute: async (args) => {
+        console.log(`[TOOL WRAPPER] Tool "${t.name}" called with args:`, args);
         const toolCall = {
           tool: t.name,
           args,
@@ -91,10 +92,12 @@ export function convertToolsToAIFormat(
 
         try {
           const result = await t.execute(args);
+          console.log(`[TOOL WRAPPER] Tool "${t.name}" returned:`, result);
           toolCall.result = result;
           onStateUpdate();
           return result;
         } catch (error) {
+          console.log(`[TOOL WRAPPER] Tool "${t.name}" error:`, error);
           toolCall.error = error instanceof Error ? error.message : String(error);
           onStateUpdate();
           throw error;
@@ -181,11 +184,21 @@ export async function executeAgent(options: ExecuteAgentOptions): Promise<any> {
     for await (const textPart of result.textStream) {
       streamedText += textPart;
       state.streamingText = streamedText;
+      console.log('[EXECUTOR] Text chunk received:', textPart);
       onStateUpdate();
     }
 
+    console.log('[EXECUTOR] Text stream completed. Total streamed text:', streamedText);
+
     // Get the final complete text
     const finalText = await result.text;
+
+    // Also check tool results
+    const toolResults = await result.toolResults;
+    console.log('[EXECUTOR] Tool results count:', toolResults.length);
+    if (toolResults.length > 0) {
+      console.log('[EXECUTOR] Tool results:', JSON.stringify(toolResults, null, 2));
+    }
 
     console.log('[EXECUTOR] Final text received:', finalText);
     console.log('[EXECUTOR] Response schema defined:', !!responseSchema);

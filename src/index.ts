@@ -80,3 +80,6 @@ export * as workspace from './workspace.js';
 
 // Re-export the AgentCLI component for direct use
 export { AgentCLI } from './ui.js';
+
+// Export the new chat UI components and function
+export { AgentChatCLI, runChatPrompt } from './ui-chat.js';

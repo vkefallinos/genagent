@@ -14,6 +14,7 @@ export interface AgentOptions {
   responseSchema?: z.ZodSchema;
   system?: string[];
   plugins?: Plugin[];
+  headless?: boolean;
 }
 
 export interface AgentContext extends PromptContext {
@@ -31,6 +32,18 @@ export interface MessageContent {
  * If undefined is returned, the messages remain unchanged.
  */
 export type MessageHistoryHook = (messages: MessageContent[]) => MessageContent[] | undefined | void;
+
+export interface SubagentThreadHandler {
+  createThread: (
+    name: string,
+    description: string,
+    prompt: string,
+    runOptions: any,
+    subMessages: MessageContent[],
+    subTools: ToolDefinition[],
+    subHooks: MessageHistoryHook[]
+  ) => Promise<any>;
+}
 
 export interface PromptContext {
   defMessage: (name: string, content: string) => void;
@@ -51,6 +64,8 @@ export interface PromptContext {
   defHook: (hook: MessageHistoryHook) => void;
   defTaskList: (tasks: Task[]) => void;
   $: (strings: TemplateStringsArray, ...values: any[]) => string;
+  // Internal: thread handler for chat UI mode
+  _threadHandler?: SubagentThreadHandler;
 }
 
 export interface RunPromptOptions {
@@ -59,6 +74,7 @@ export interface RunPromptOptions {
   system?: string[];
   label?: string;
   plugins?: Plugin[];
+  headless?: boolean;
 }
 
 export interface AgentState {
@@ -80,4 +96,16 @@ export interface AgentState {
     response: string;
     error: string;
   }>;
+  // New fields for chat UI
+  isPaused?: boolean;
+  pendingUserMessage?: string;
+  executionState?: 'idle' | 'executing' | 'paused' | 'waiting_for_input';
+}
+
+export interface ExecutionControl {
+  pause: () => void;
+  resume: () => void;
+  isPaused: () => boolean;
+  injectMessage: (message: string) => void;
+  getPendingMessage: () => string | undefined;
 }

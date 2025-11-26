@@ -12,12 +12,12 @@ const args = process.argv.slice(2);
 const hasGenTs = args.some(arg => arg.endsWith('.gen.ts'));
 
 if (hasGenTs) {
-  // For .gen.ts files, re-spawn with tsx loader enabled
-  const txzPath = resolve(__dirname, '../node_modules/.bin/tsx');
+  // For .gen.ts files, re-spawn with tsx import hook enabled
+  // Use --import instead of --loader (which is deprecated in Node 20.6.0+)
   const cliPath = resolve(__dirname, '../dist/cli.js');
 
   const child = spawn('node', [
-    '--loader', 'tsx/esm',
+    '--import', 'tsx/esm',
     cliPath,
     ...args
   ], {

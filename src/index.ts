@@ -39,6 +39,8 @@ export async function runPrompt<T extends z.ZodSchema = z.ZodAny>(
   options: RunPromptOptions & { responseSchema?: T }
 ): Promise<T extends z.ZodSchema ? z.infer<T> : any> {
   return new Promise((resolve, reject) => {
+    let appInstance: any = null;
+
     const element = React.createElement(AgentCLI, {
       promptFn,
       model: options.model,
@@ -46,15 +48,17 @@ export async function runPrompt<T extends z.ZodSchema = z.ZodAny>(
       system: options.system,
       label: options.label,
       plugins: options.plugins,
+      parentOnStateUpdate: options.parentOnStateUpdate,
+      parentState: options.parentState,
       onComplete: (result: any) => {
-        // Unmount and resolve
+        // Unmount and resolve (only if not a subagent)
         if (appInstance) {
           appInstance.unmount();
         }
         resolve(result);
       },
       onError: (error: Error) => {
-        // Unmount and reject
+        // Unmount and reject (only if not a subagent)
         if (appInstance) {
           appInstance.unmount();
         }
@@ -62,7 +66,8 @@ export async function runPrompt<T extends z.ZodSchema = z.ZodAny>(
       },
     });
 
-    const appInstance = render(element);
+    // Only render if not in subagent mode (parentOnStateUpdate not provided)
+    appInstance = options.parentOnStateUpdate ? null : render(element);
   });
 }
 

@@ -303,15 +303,20 @@ export interface AgentCLIProps<T extends z.ZodSchema = z.ZodAny> {
   plugins?: any[];
   onComplete?: (result: any) => void;
   onError?: (error: Error) => void;
+  parentOnStateUpdate?: () => void;
+  parentState?: AgentState;
 }
 
 /**
  * Main CLI component that manages agent state and orchestrates execution
  */
 export const AgentCLI = <T extends z.ZodSchema = z.ZodAny,>(props: AgentCLIProps<T>) => {
-  const { promptFn, model, responseSchema, system, label, plugins, onComplete, onError } = props;
+  const { promptFn, model, responseSchema, system, label, plugins, onComplete, onError, parentOnStateUpdate, parentState } = props;
 
-  // Agent state managed by React
+  // Determine if this is a subagent (headless mode)
+  const isSubagent = !!parentOnStateUpdate && !!parentState;
+
+  // Agent state managed by React (only used if not a subagent)
   const [state, setState] = useState<AgentState>({
     messages: [],
     tools: [],
@@ -367,18 +372,31 @@ export const AgentCLI = <T extends z.ZodSchema = z.ZodAny,>(props: AgentCLIProps
         const promptResult = await promptFn(ctx);
 
         // Initialize mutable state object
-        mutableState = {
-          messages: [...messages],
-          tools: [...tools],
-          currentPrompt: promptResult,
-          toolCalls: [],
-          label,
-          validationAttempts: [],
-        };
+        // If this is a subagent, use the provided parent state; otherwise create new state
+        if (isSubagent && parentState) {
+          // Use the parent-provided state (which is actually the subagent's own state)
+          mutableState = parentState;
+          // Update it with current execution info
+          mutableState.messages = [...messages];
+          mutableState.tools = [...tools];
+          mutableState.currentPrompt = promptResult;
+        } else {
+          mutableState = {
+            messages: [...messages],
+            tools: [...tools],
+            currentPrompt: promptResult,
+            toolCalls: [],
+            label,
+            validationAttempts: [],
+          };
+        }
 
         // Update state callback that references mutableState
         const updateMutableState = () => {
-          if (mutableState) {
+          if (isSubagent && parentOnStateUpdate) {
+            // Use parent's update callback when in subagent mode
+            parentOnStateUpdate();
+          } else if (mutableState) {
             setState({ ...mutableState });
           }
         };
@@ -428,13 +446,22 @@ export const AgentCLI = <T extends z.ZodSchema = z.ZodAny,>(props: AgentCLIProps
         });
 
         // Update state with response and clear streaming text
-        mutableState.response = finalResponse;
-        mutableState.streamingText = undefined;
-        setState({ ...mutableState });
-        saveStateToFile(mutableState);
+        // Only set response if not a subagent (subagent returns result via tool execution)
+        if (!isSubagent) {
+          mutableState.response = finalResponse;
+          mutableState.streamingText = undefined;
+          setState({ ...mutableState });
+          saveStateToFile(mutableState);
 
-        // Wait a bit to show final state
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+          // Wait a bit to show final state
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        } else {
+          // For subagents, just clear streaming text
+          mutableState.streamingText = undefined;
+          if (parentOnStateUpdate) {
+            parentOnStateUpdate();
+          }
+        }
 
         if (onComplete) {
           onComplete(finalResponse);
@@ -444,12 +471,16 @@ export const AgentCLI = <T extends z.ZodSchema = z.ZodAny,>(props: AgentCLIProps
 
         // Use mutableState if it exists, otherwise use current state
         const errorState = mutableState || state;
-        errorState.error = errorMessage;
-        setState({ ...errorState });
-        saveStateToFile(errorState);
 
-        // Wait a bit to show error
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        // Only set error in state if not a subagent
+        if (!isSubagent) {
+          errorState.error = errorMessage;
+          setState({ ...errorState });
+          saveStateToFile(errorState);
+
+          // Wait a bit to show error
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
 
         if (onError) {
           onError(error instanceof Error ? error : new Error(errorMessage));
@@ -459,6 +490,11 @@ export const AgentCLI = <T extends z.ZodSchema = z.ZodAny,>(props: AgentCLIProps
 
     executePrompt();
   }, []);
+
+  // If this is a subagent, don't render anything (headless mode)
+  if (isSubagent) {
+    return null;
+  }
 
   return <AgentUIDisplay state={state} />;
 };

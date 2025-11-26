@@ -7,6 +7,8 @@ export interface ToolDefinition {
   description: string;
   schema: z.ZodSchema;
   execute: (...args: any[]) => Promise<any> | any;
+  isAgent?: boolean;
+  agentOptions?: AgentOptions;
 }
 
 export interface AgentOptions {
@@ -59,6 +61,8 @@ export interface RunPromptOptions {
   system?: string[];
   label?: string;
   plugins?: Plugin[];
+  parentOnStateUpdate?: () => void;
+  parentState?: AgentState;
 }
 
 export interface AgentState {
@@ -74,6 +78,7 @@ export interface AgentState {
     args: any;
     result?: any;
     error?: string;
+    subagentState?: AgentState;
   }>;
   validationAttempts?: Array<{
     attempt: number;

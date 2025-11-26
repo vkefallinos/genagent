@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { resolve, basename } from 'path';
-import { writeFile, mkdir } from 'fs/promises';
+import { writeFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { runPrompt } from './index.js';
 
@@ -52,7 +52,8 @@ export async function main() {
     console.log('  --help, -h       Show this help message');
     console.log('');
     console.log('Arguments:');
-    console.log('  <file>           Path to a GenAgent file with .gen.ts or .gen.js extension');
+    console.log('  <file>           Path to a GenAgent file (.gen.ts or .gen.js)');
+    console.log('                   .gen.ts files are executed directly without compilation');
     console.log('                   Must export:');
     console.log('                   - Default export: async function accepting PromptContext');
     console.log('                   - options: RunPromptOptions with model property');
@@ -102,7 +103,9 @@ export async function main() {
     const resolvedPath = resolve(process.cwd(), filePath);
 
     // Dynamic import to load the file
-    const module = await import(resolvedPath);
+    // If this is a .gen.ts file, the tsx loader is already enabled by the wrapper script
+    const importPath = `file://${resolvedPath}`;
+    const module = await import(importPath);
 
     // Extract the promptFn and options from the module
     // promptFn can be:

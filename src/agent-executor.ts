@@ -171,7 +171,7 @@ export async function executeAgent(options: ExecuteAgentOptions): Promise<any> {
       messages: currentMessages,
       system: systemPrompts.join('\n\n'),
       tools: Object.keys(aiTools).length > 0 ? aiTools : undefined,
-      maxSteps: 50, // Increased from 10 to allow more tool calls for complex task lists
+      maxSteps: 1000, // Increased from 10 to allow more tool calls for complex task lists
     });
 
     // Stream the text chunks and update state in real-time

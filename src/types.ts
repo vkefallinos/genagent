@@ -20,9 +20,32 @@ export interface AgentContext extends PromptContext {
   args: any;
 }
 
+export type MessageType =
+  | 'user'
+  | 'assistant'
+  | 'system'
+  | 'tool_call'
+  | 'tool_result'
+  | 'subagent';
+
+export interface MessageMetadata {
+  toolName?: string;
+  args?: any;
+  result?: any;
+  error?: string;
+  subagentLabel?: string;
+  subagentMessages?: MessageContent[];
+  executionTime?: number;
+}
+
 export interface MessageContent {
+  id: string;
   name: string;
   content: string;
+  type?: MessageType;
+  timestamp?: number;
+  parentId?: string;
+  metadata?: MessageMetadata;
 }
 
 /**
@@ -80,4 +103,25 @@ export interface AgentState {
     response: string;
     error: string;
   }>;
+}
+
+/**
+ * Utility function to create a message with proper ID and timestamp
+ */
+export function createMessage(
+  name: string,
+  content: string,
+  type?: MessageType,
+  metadata?: MessageMetadata,
+  parentId?: string
+): MessageContent {
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    name,
+    content,
+    type: type || (name === 'user' ? 'user' : name === 'system' ? 'system' : 'assistant'),
+    timestamp: Date.now(),
+    parentId,
+    metadata,
+  };
 }

@@ -14,6 +14,7 @@ import {
   buildConversationMessages,
   executeAgent,
 } from './agent-executor.js';
+import { MessageList } from './components/messages/index.js';
 
 interface MessageModalProps {
   state: AgentState;
@@ -78,6 +79,16 @@ const MessageModal: React.FC<MessageModalProps> = ({ state, messageIndex, onClos
         <Text color="blue" bold>
           From: {message.name}
         </Text>
+        {message.type && (
+          <Text color="gray" dimColor>
+            Type: {message.type}
+          </Text>
+        )}
+        {message.timestamp && (
+          <Text color="gray" dimColor>
+            Time: {new Date(message.timestamp).toLocaleString()}
+          </Text>
+        )}
       </Box>
 
       <Box flexDirection="column" paddingX={2} paddingTop={1} flexGrow={1}>
@@ -95,6 +106,40 @@ const MessageModal: React.FC<MessageModalProps> = ({ state, messageIndex, onClos
           </Text>
         )}
       </Box>
+
+      {message.type === 'subagent' && message.metadata?.subagentMessages && (
+        <Box flexDirection="column" paddingX={2} paddingTop={1} borderTop borderColor="magenta">
+          <Text color="magenta" bold>
+            🤖 Subagent Messages ({message.metadata.subagentMessages.length}):
+          </Text>
+          <Text dimColor>
+            Subagent: {message.metadata.subagentLabel || 'unknown'}
+          </Text>
+          {message.metadata.executionTime && (
+            <Text dimColor>
+              Execution Time: {message.metadata.executionTime}ms
+            </Text>
+          )}
+          <Box flexDirection="column" paddingLeft={2} paddingTop={1}>
+            {message.metadata.subagentMessages.map((msg, idx) => (
+              <Box key={msg.id || idx} flexDirection="column" marginTop={idx > 0 ? 1 : 0}>
+                <Text color={msg.name === 'user' ? 'blue' : 'green'}>
+                  {msg.name}:
+                </Text>
+                <Text dimColor>{msg.content.substring(0, 100)}{msg.content.length > 100 && '...'}</Text>
+              </Box>
+            ))}
+          </Box>
+          {message.metadata.result && (
+            <Box flexDirection="column" paddingTop={1}>
+              <Text color="green">
+                ✓ Final Result:
+              </Text>
+              <Text>{JSON.stringify(message.metadata.result, null, 2).substring(0, 200)}</Text>
+            </Box>
+          )}
+        </Box>
+      )}
 
       {state.toolCalls.length > 0 && (
         <Box flexDirection="column" paddingX={2} paddingTop={1} borderTop borderColor="gray">
@@ -174,26 +219,15 @@ const AgentUIDisplay: React.FC<AgentUIDisplayProps> = ({ state }) => {
       {state.messages.length > 0 && (
         <Box flexDirection="column" marginBottom={1}>
           <Text color="green" bold>
-            💬 Messages: (Use ↑↓ to navigate, Enter to view details)
+            💬 Conversation Timeline: (Use ↑↓ to navigate, Enter to view details)
           </Text>
+          <MessageList
+            messages={state.messages}
+            selectedIndex={selectedIndex}
+            truncate={true}
+          />
         </Box>
       )}
-
-      {state.messages.map((msg, idx) => {
-        const isSelected = idx === selectedIndex;
-        const truncatedContent = msg.content.length > 80
-          ? msg.content.substring(0, 80) + '...'
-          : msg.content;
-
-        return (
-          <Box key={idx} flexDirection="column" marginBottom={1}>
-            <Text color={isSelected ? "cyan" : "blue"} bold backgroundColor={isSelected ? "blue" : undefined}>
-              {isSelected ? '► ' : '  '}▸ {msg.name}:
-            </Text>
-            <Text dimColor={!isSelected}>{truncatedContent}</Text>
-          </Box>
-        );
-      })}
 
       {state.tools.length > 0 && (
         <Box flexDirection="column" marginBottom={1}>
@@ -301,15 +335,16 @@ export interface AgentCLIProps<T extends z.ZodSchema = z.ZodAny> {
   system?: string[];
   label?: string;
   plugins?: any[];
-  onComplete?: (result: any) => void;
+  onComplete?: (result: any, state?: AgentState) => void;
   onError?: (error: Error) => void;
+  onStateUpdate?: (state: AgentState) => void;
 }
 
 /**
  * Main CLI component that manages agent state and orchestrates execution
  */
 export const AgentCLI = <T extends z.ZodSchema = z.ZodAny,>(props: AgentCLIProps<T>) => {
-  const { promptFn, model, responseSchema, system, label, plugins, onComplete, onError } = props;
+  const { promptFn, model, responseSchema, system, label, plugins, onComplete, onError, onStateUpdate } = props;
 
   // Agent state managed by React
   const [state, setState] = useState<AgentState>({
@@ -380,6 +415,9 @@ export const AgentCLI = <T extends z.ZodSchema = z.ZodAny,>(props: AgentCLIProps
         const updateMutableState = () => {
           if (mutableState) {
             setState({ ...mutableState });
+            if (onStateUpdate) {
+              onStateUpdate({ ...mutableState });
+            }
           }
         };
 
@@ -437,7 +475,7 @@ export const AgentCLI = <T extends z.ZodSchema = z.ZodAny,>(props: AgentCLIProps
         await new Promise((resolve) => setTimeout(resolve, 1000));
 
         if (onComplete) {
-          onComplete(finalResponse);
+          onComplete(finalResponse, mutableState);
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);

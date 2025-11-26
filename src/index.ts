@@ -66,6 +66,42 @@ export async function runPrompt<T extends z.ZodSchema = z.ZodAny>(
   });
 }
 
+/**
+ * Internal function used by defAgent to capture both result and state from subagents.
+ * Returns an object with both the result and the agent state.
+ */
+export async function runPromptWithState<T extends z.ZodSchema = z.ZodAny>(
+  promptFn: (ctx: PromptContext) => Promise<string> | string,
+  options: RunPromptOptions & { responseSchema?: T }
+): Promise<{ result: T extends z.ZodSchema ? z.infer<T> : any; state: any }> {
+  return new Promise((resolve, reject) => {
+    const element = React.createElement(AgentCLI, {
+      promptFn,
+      model: options.model,
+      responseSchema: options.responseSchema,
+      system: options.system,
+      label: options.label,
+      plugins: options.plugins,
+      onComplete: (result: any, state: any) => {
+        // Unmount and resolve with both result and state
+        if (appInstance) {
+          appInstance.unmount();
+        }
+        resolve({ result, state });
+      },
+      onError: (error: Error) => {
+        // Unmount and reject
+        if (appInstance) {
+          appInstance.unmount();
+        }
+        reject(error);
+      },
+    });
+
+    const appInstance = render(element);
+  });
+}
+
 // Export model alias resolver
 export { resolveModelAliasImpl as resolveModelAlias };
 

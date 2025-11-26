@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { PromptContext, MessageContent } from './types.js';
+import { createMessage } from './types.js';
 
 /**
  * Task definition with prompt and validation function
@@ -124,16 +125,16 @@ export function defTaskList(
     const newMessages: MessageContent[] = [];
 
     // Add system instructions about the task list
-    newMessages.push({
-      name: 'system',
-      content: [
+    newMessages.push(createMessage(
+      'system',
+      [
         'You are working through a task list. Each task must be completed in order.',
         'Use the finishTask tool to submit your result for the current task.',
         'If validation fails, you will receive feedback to correct your result.',
         'Focus only on the current task, but be aware of upcoming tasks.',
         'Previous tasks are summarized below for context.',
-      ].join('\n'),
-    });
+      ].join('\n')
+    ));
 
     // Add summaries of completed tasks
     if (state.completedTasks.length > 0) {
@@ -141,10 +142,10 @@ export function defTaskList(
         .map((ct, i) => `Task ${i + 1}: ${ct.task}\nResult: ${ct.result}`)
         .join('\n\n');
 
-      newMessages.push({
-        name: 'system',
-        content: `Completed tasks (${state.completedTasks.length}/${state.tasks.length}):\n\n${taskSummaries}`,
-      });
+      newMessages.push(createMessage(
+        'system',
+        `Completed tasks (${state.completedTasks.length}/${state.tasks.length}):\n\n${taskSummaries}`
+      ));
     }
 
     // Add information about upcoming tasks (not including current)
@@ -154,10 +155,10 @@ export function defTaskList(
         .map((t, i) => `${i + state.currentTaskIndex + 2}. ${t.task}`)
         .join('\n');
 
-      newMessages.push({
-        name: 'system',
-        content: `Upcoming tasks:\n${upcomingTasks}`,
-      });
+      newMessages.push(createMessage(
+        'system',
+        `Upcoming tasks:\n${upcomingTasks}`
+      ));
     }
 
     // Add current task prompt
@@ -165,17 +166,17 @@ export function defTaskList(
       const currentTaskNum = state.currentTaskIndex + 1;
       const currentTask = state.tasks[state.currentTaskIndex];
 
-      newMessages.push({
-        name: 'user',
-        content: `[Task ${currentTaskNum}/${state.tasks.length}] ${currentTask.task}`,
-      });
+      newMessages.push(createMessage(
+        'user',
+        `[Task ${currentTaskNum}/${state.tasks.length}] ${currentTask.task}`
+      ));
 
       // If there's validation feedback from a previous attempt, add it
       if (state.validationFeedback) {
-        newMessages.push({
-          name: 'system',
-          content: `Previous attempt feedback: ${state.validationFeedback}`,
-        });
+        newMessages.push(createMessage(
+          'system',
+          `Previous attempt feedback: ${state.validationFeedback}`
+        ));
       }
     }
 

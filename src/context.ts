@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { PromptContext, MessageContent, ToolDefinition, MessageHistoryHook, AgentOptions, AgentContext } from './types.js';
+import { PromptContext, MessageContent, ToolDefinition, MessageHistoryHook, AgentOptions, AgentContext, createMessage } from './types.js';
 import { defTaskList as defTaskListImpl } from './task-list.js';
 
 /**
@@ -33,7 +33,7 @@ export function createContext(
 
   const ctx: PromptContext = {
     defMessage: (name: string, content: string) => {
-      messages.push({ name, content });
+      messages.push(createMessage(name, content));
     },
 
     def: (variableName: string, content: string) => {
@@ -41,10 +41,10 @@ export function createContext(
 
       // Add system instructions about variable references on first use
       if (!variableInstructionsAdded) {
-        messages.push({
-          name: 'system',
-          content: 'Variables have been defined and will be prepended to the user prompt in the format "VARIABLE_NAME: content". You can reference these variables in your response using the $VARIABLE_NAME syntax shown in the prompt.',
-        });
+        messages.push(createMessage(
+          'system',
+          'Variables have been defined and will be prepended to the user prompt in the format "VARIABLE_NAME: content". You can reference these variables in your response using the $VARIABLE_NAME syntax shown in the prompt.'
+        ));
         variableInstructionsAdded = true;
       }
     },
@@ -76,8 +76,10 @@ export function createContext(
         description,
         schema: inputSchema,
         execute: async (args: z.infer<T>) => {
-          // Dynamically import runPrompt to avoid circular dependency
-          const { runPrompt } = await import('./index.js');
+          const startTime = Date.now();
+
+          // Dynamically import runPromptWithState to avoid circular dependency
+          const { runPromptWithState } = await import('./index.js');
 
           // Create the agent's prompt function
           const agentPromptFn = async (agentCtx: PromptContext) => {
@@ -101,8 +103,29 @@ export function createContext(
             label: `agent-${name}`,
           };
 
-          // Run the agent and return its result
-          const result = await runPrompt(agentPromptFn, runOptions);
+          // Run the agent and capture both result and state
+          const { result, state } = await runPromptWithState(agentPromptFn, runOptions);
+
+          const executionTime = Date.now() - startTime;
+
+          // Create a subagent message in the parent with nested messages
+          const subagentMessage = createMessage(
+            'assistant',
+            `Subagent ${name} completed`,
+            'subagent',
+            {
+              subagentLabel: name,
+              subagentMessages: state?.messages || [],
+              result,
+              executionTime,
+              toolName: name,
+              args,
+            }
+          );
+
+          // Add the subagent message to parent's message history
+          messages.push(subagentMessage);
+
           return result;
         },
       });

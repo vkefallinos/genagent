@@ -161,6 +161,10 @@ export async function executeAgent(options: ExecuteAgentOptions): Promise<any> {
   const maxValidationRetries = 3;
   let currentMessages = [...conversationMessages];
 
+  console.log('[EXECUTOR] AI Tools passed to executeAgent:', Object.keys(aiTools));
+  console.log('[EXECUTOR] AI Tools object:', aiTools);
+  console.log('[EXECUTOR] Will pass tools to model:', Object.keys(aiTools).length > 0);
+
   for (let attempt = 0; attempt <= maxValidationRetries; attempt++) {
     const result = await streamText({
       model: modelInstance,
@@ -169,6 +173,8 @@ export async function executeAgent(options: ExecuteAgentOptions): Promise<any> {
       tools: Object.keys(aiTools).length > 0 ? aiTools : undefined,
       maxSteps: 10,
     });
+
+    console.log('[EXECUTOR] streamText result created, starting stream...');
 
     // Stream the text chunks and update state in real-time
     let streamedText = '';
@@ -181,8 +187,12 @@ export async function executeAgent(options: ExecuteAgentOptions): Promise<any> {
     // Get the final complete text
     const finalText = await result.text;
 
+    console.log('[EXECUTOR] Final text received:', finalText);
+    console.log('[EXECUTOR] Response schema defined:', !!responseSchema);
+
     // If no schema validation is required, return the response text
     if (!responseSchema) {
+      console.log('[EXECUTOR] Returning final text (no schema validation)');
       return finalText;
     }
 

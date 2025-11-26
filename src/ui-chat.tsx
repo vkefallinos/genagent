@@ -290,7 +290,8 @@ const AgentChatCLI: React.FC<AgentChatCLIProps> = ({
         console.log('[UI-CHAT] Tool names:', state.tools.map((t: any) => t.name));
         console.log('[UI-CHAT] Messages count:', state.messages.length);
         console.log('[UI-CHAT] Conversation messages:', conversationMessages);
-        console.log('[UI-CHAT] AI Tools count:', aiTools.length);
+        console.log('[UI-CHAT] AI Tools:', aiTools);
+        console.log('[UI-CHAT] AI Tools keys:', Object.keys(aiTools));
 
         // Execute the agent
         const result = await executeAgent({

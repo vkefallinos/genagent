@@ -85,6 +85,7 @@ export { resolveModelAliasImpl as resolveModelAlias };
 export * from './types.js';
 export * from './plugins/types.js';
 export * from './task-list.js';
+export * from './dynamic-task-list.js';
 
 // Re-export host and workspace utilities
 export * as host from './host.js';

@@ -52,6 +52,7 @@ export interface PromptContext {
   ) => void;
   defHook: (hook: MessageHistoryHook) => void;
   defTaskList: (tasks: Task[]) => void;
+  defDynamicTaskList: () => void;
   $: (strings: TemplateStringsArray, ...values: any[]) => string;
 }
 

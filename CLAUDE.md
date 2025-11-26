@@ -30,6 +30,7 @@ The codebase follows a modular architecture with clear separation of concerns:
 - **`workspace.ts`** - File system operations utilities
 - **`host.ts`** - Terminal/user interaction utilities
 - **`task-list.ts`** - Sequential task execution with validation
+- **`dynamic-task-list.ts`** - Agent-controlled dynamic task management
 
 ## Key Features
 
@@ -61,6 +62,7 @@ The prompt context provides several helper functions:
 - **`defAgent(name, description, schema, fn, options)`** - Register nested agents
 - **`defHook(hook)`** - Register message history transformation hooks
 - **`defTaskList(tasks)`** - Define sequential tasks with validation
+- **`defDynamicTaskList()`** - Enable agent-controlled dynamic task management
 - **`$(template, ...values)`** - Template literal for prompt building
 
 ### 3. Plugin System
@@ -134,7 +136,57 @@ await runPrompt(
 - Failed validations are retried with specific error feedback
 - Completed tasks are summarized for context in subsequent tasks
 
-### 7. Host Interactions
+### 7. Dynamic Task List System
+Agent-controlled task management with `defDynamicTaskList`:
+
+```typescript
+await runPrompt(
+  async ({ defDynamicTaskList, $ }) => {
+    defDynamicTaskList();
+
+    return $`You are a project planner. Create a task list for building
+             a web app, complete tasks one by one, and add new tasks as
+             you discover them.`;
+  },
+  { model: 'openai:gpt-4' }
+);
+```
+
+**How `defDynamicTaskList` works:**
+- **Agent-Controlled**: The agent creates, updates, and completes tasks dynamically
+- **Flexible Task Creation**: Tasks can be added during execution as needs are discovered
+- **Task Management Tools**: Provides tools for create, update, start, complete, delete, and view tasks
+- **No Validation Constraints**: Tasks are completed when the agent decides (no required validation)
+- **Real-Time Updates**: UI shows tasks being created and completed in real-time
+- **Context Awareness**: Task list state is automatically injected into conversation context
+
+**Available Tools:**
+- `createTask(description)` - Add a new task to the list
+- `updateTask(taskId, newDescription)` - Modify a pending task
+- `startTask(taskId)` - Mark a task as in-progress
+- `completeTask(taskId, result)` - Mark a task as completed with results
+- `deleteTask(taskId)` - Remove a pending task
+- `getTaskList()` - View current task list state
+
+**Task States:**
+- **pending**: Task created but not started
+- **in_progress**: Task currently being worked on
+- **completed**: Task finished with result
+
+**Use Cases:**
+- Adaptive planning where requirements emerge during execution
+- Complex multi-phase projects
+- Debugging workflows that require iterative investigation
+- Research tasks with evolving scope
+- Any scenario where the full task list cannot be known upfront
+
+**Comparison:**
+- `defTaskList` is best for fixed workflows with validation requirements
+- `defDynamicTaskList` is best for adaptive workflows where the agent needs flexibility
+
+See `/docs/dynamic-task-list.md` for comprehensive documentation and examples.
+
+### 8. Host Interactions
 Terminal/user interaction utilities:
 - `input(prompt)` - Prompt for text input
 - `select(prompt, options)` - Single selection menu
@@ -214,6 +266,7 @@ Comprehensive examples demonstrating all features:
 - `schema-validation.ts` - Automatic validation and retry logic
 - `with-plugins.ts` - Plugin system usage
 - `task-list.ts` - Sequential task execution
+- `dynamic-task-list.ts` - Agent-controlled dynamic task management
 - `hooks.ts` - Message history transformation
 - `model-alias.ts` - Environment variable model aliases
 - `plugins/` - Example plugin implementations

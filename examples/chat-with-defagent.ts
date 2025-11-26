@@ -48,7 +48,7 @@ import { z } from 'zod';
             return prompt;
           },
           {
-            model: 'gpt-4o-mini',
+            model: 'large',
             system: ['You are a helpful math assistant']
           }
         );
@@ -67,7 +67,7 @@ import { z } from 'zod';
             return $`Research and summarize: ${topic}`;
           },
           {
-            model: 'gpt-4o-mini'
+            model: 'large'
           }
         );
 
@@ -79,7 +79,7 @@ import { z } from 'zod';
                  After that, use the researcher subagent to explain what addition is.`;
       },
       {
-        model: 'gpt-4o-mini',
+        model: 'large',
         label: 'defagent-demo',
         system: ['You are a helpful assistant that delegates tasks to specialized subagents.']
       }

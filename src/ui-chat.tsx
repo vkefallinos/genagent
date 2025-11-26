@@ -285,6 +285,13 @@ const AgentChatCLI: React.FC<AgentChatCLIProps> = ({
           initialPrompt
         );
 
+        // Debug logging
+        console.log('[UI-CHAT] Tools registered:', state.tools.length);
+        console.log('[UI-CHAT] Tool names:', state.tools.map((t: any) => t.name));
+        console.log('[UI-CHAT] Messages count:', state.messages.length);
+        console.log('[UI-CHAT] Conversation messages:', conversationMessages);
+        console.log('[UI-CHAT] AI Tools count:', aiTools.length);
+
         // Execute the agent
         const result = await executeAgent({
           modelInstance,
@@ -298,6 +305,12 @@ const AgentChatCLI: React.FC<AgentChatCLIProps> = ({
           transformedMessages: applyMessageHooks([...state.messages], hooks),
           onStateUpdate: updateState
         });
+
+        // Debug logging for result
+        console.log('[UI-CHAT] Execution completed');
+        console.log('[UI-CHAT] Result type:', typeof result);
+        console.log('[UI-CHAT] Result value:', result);
+        console.log('[UI-CHAT] Result is empty:', result === '' || result === null || result === undefined);
 
         // Update the assistant message with final result
         actions.updateMessage(assistantMessageId, {

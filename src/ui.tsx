@@ -14,7 +14,18 @@ import {
   buildConversationMessages,
   executeAgent,
 } from './agent-executor.js';
+import {parse, setOptions} from 'marked';
+import TerminalRenderer, { TerminalRendererOptions } from 'marked-terminal';
 
+export type Props = TerminalRendererOptions & {
+  children: string;
+};
+
+export default function Markdown({ children, ...options }: Props) {
+  //@ts-ignore
+  setOptions({ renderer: new TerminalRenderer(options) });
+  return <Text>{parse(children).trim()}</Text>;
+}
 // Save state to file
 async function saveStateToFile(currentState: AgentState) {
   if (!currentState.label) return;
@@ -412,7 +423,7 @@ const AgentUIDisplay: React.FC<AgentUIDisplayProps> = ({ state }) => {
           <Text color="yellow" bold>
             ⏳ Streaming Response:
           </Text>
-          <Text>{state.streamingText}</Text>
+          <Markdown>{state.streamingText}</Markdown>
         </Box>
       )}
 
@@ -421,7 +432,7 @@ const AgentUIDisplay: React.FC<AgentUIDisplayProps> = ({ state }) => {
           <Text color="green" bold>
             ✓ Response:
           </Text>
-          <Text>{JSON.stringify(state.response, null, 2)}</Text>
+          <Markdown>{`${state.response}`}</Markdown>
         </Box>
       )}
 

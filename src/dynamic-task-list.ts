@@ -43,6 +43,7 @@ interface DynamicTaskListState {
   tasks: Map<string, DynamicTask>;
   taskOrder: string[]; // Maintains insertion order
   nextId: number;
+  hasStarted: boolean; // Track if we've created any tasks
 }
 
 /**
@@ -74,6 +75,7 @@ export function defDynamicTaskList(ctx: PromptContext): void {
     tasks: new Map(),
     taskOrder: [],
     nextId: 1,
+    hasStarted: false,
   };
 
   /**
@@ -151,6 +153,7 @@ export function defDynamicTaskList(ctx: PromptContext): void {
 
       state.tasks.set(taskId, task);
       state.taskOrder.push(taskId);
+      state.hasStarted = true; // Mark that we've started working with tasks
 
       return `✓ Created task ${taskId}: "${description}"\n\nTotal tasks: ${state.taskOrder.length}`;
     }
@@ -300,36 +303,110 @@ export function defDynamicTaskList(ctx: PromptContext): void {
     }
   );
 
-  // Add message hook to show task list context
+  // Add message hook to completely replace message history (like defTaskList does)
   ctx.defHook((messages) => {
-    // Only add context if there are tasks
-    if (state.taskOrder.length === 0) {
+    // Only replace messages if we've started working with tasks
+    if (!state.hasStarted || state.taskOrder.length === 0) {
       return messages;
     }
 
-    const newMessages: MessageContent[] = [...messages];
+    // Start with a fresh message array (like defTaskList)
+    const newMessages: MessageContent[] = [];
 
-    // Insert task list overview before the last user message
-    const taskListOverview: MessageContent = {
+    // Check completion status
+    const completed = state.taskOrder.filter(
+      id => state.tasks.get(id)?.status === 'completed'
+    ).length;
+    const total = state.taskOrder.length;
+    const allCompleted = completed === total;
+
+    const pending = state.taskOrder.filter(
+      id => state.tasks.get(id)?.status === 'pending'
+    );
+    const inProgress = state.taskOrder.filter(
+      id => state.tasks.get(id)?.status === 'in_progress'
+    );
+
+    // Add system instructions (always present)
+    newMessages.push({
       name: 'system',
-      content: `DYNAMIC TASK LIST STATUS:\n\n${formatTaskList()}\n\nAvailable tools: createTask, updateTask, startTask, completeTask, getTaskList, deleteTask`,
-    };
+      content: [
+        'You are working through a dynamic task list.',
+        'Use the task management tools to create, start, and complete tasks.',
+        'You MUST complete ALL tasks before finishing.',
+        'Continue until all tasks show status "completed".',
+      ].join('\n'),
+    });
 
-    // Find the last user message index
-    let lastUserIndex = -1;
-    for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].name === 'user') {
-        lastUserIndex = i;
-        break;
-      }
+    // Add completed tasks summary
+    if (completed > 0) {
+      const completedTasks = state.taskOrder
+        .filter(id => state.tasks.get(id)?.status === 'completed')
+        .map(id => {
+          const task = state.tasks.get(id)!;
+          return `✓ [${task.id}] ${task.description}\n  Result: ${task.result}`;
+        })
+        .join('\n\n');
+
+      newMessages.push({
+        name: 'system',
+        content: `Completed tasks (${completed}/${total}):\n\n${completedTasks}`,
+      });
     }
 
-    if (lastUserIndex >= 0) {
-      // Insert before the last user message
-      newMessages.splice(lastUserIndex, 0, taskListOverview);
+    // Show current in-progress or next pending task
+    if (!allCompleted) {
+      let currentTaskMessage = '';
+
+      if (inProgress.length > 0) {
+        const task = state.tasks.get(inProgress[0])!;
+        currentTaskMessage = [
+          `Current Task (IN PROGRESS):`,
+          `[${task.id}] ${task.description}`,
+          '',
+          'Complete this task using completeTask before moving to the next one.',
+        ].join('\n');
+      } else if (pending.length > 0) {
+        const task = state.tasks.get(pending[0])!;
+        currentTaskMessage = [
+          `Next Task (PENDING):`,
+          `[${task.id}] ${task.description}`,
+          '',
+          'Start this task using startTask, then complete it with completeTask.',
+        ].join('\n');
+      }
+
+      // Show remaining pending tasks (not including the current one)
+      const remainingPending = pending.slice(inProgress.length === 0 ? 1 : 0);
+      if (remainingPending.length > 0) {
+        const upcomingList = remainingPending
+          .map(id => {
+            const task = state.tasks.get(id)!;
+            return `○ [${task.id}] ${task.description}`;
+          })
+          .join('\n');
+
+        currentTaskMessage += `\n\nUpcoming tasks (${remainingPending.length}):\n${upcomingList}`;
+      }
+
+      currentTaskMessage += `\n\nProgress: ${completed}/${total} tasks completed`;
+      currentTaskMessage += '\n\n⚠️ YOU MUST CONTINUE - Not all tasks are completed!';
+
+      newMessages.push({
+        name: 'user',
+        content: currentTaskMessage,
+      });
     } else {
-      // No user message found, append at the end
-      newMessages.push(taskListOverview);
+      // All tasks completed - allow finishing
+      newMessages.push({
+        name: 'user',
+        content: [
+          '✅ All tasks completed successfully!',
+          `Total: ${total}/${total} tasks completed`,
+          '',
+          'You may now provide a final summary of what was accomplished.',
+        ].join('\n'),
+      });
     }
 
     return newMessages;
@@ -347,6 +424,12 @@ export function defDynamicTaskList(ctx: PromptContext): void {
     '- getTaskList: View current task list state',
     '- deleteTask: Remove pending tasks that are no longer needed',
     '',
-    'Work through tasks systematically and add new ones as needed.',
+    '⚠️ CRITICAL REQUIREMENT:',
+    '- You MUST complete ALL tasks before finishing',
+    '- DO NOT provide a final response until ALL tasks show status "completed"',
+    '- Continue working through tasks systematically',
+    '- Add new tasks as needed during execution',
+    '',
+    'The system will remind you to continue if there are incomplete tasks.',
   ].join('\n'));
 }

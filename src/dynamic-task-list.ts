@@ -331,10 +331,10 @@ export function defDynamicTaskList(ctx: PromptContext): void {
     newMessages.push({
       name: 'system',
       content: [
-        'You are working through a dynamic task list.',
-        'Use the task management tools to create, start, and complete tasks.',
-        'You MUST complete ALL tasks before finishing.',
-        'Continue until all tasks show status "completed".',
+        'You are working through a dynamic task list. Each task must be completed.',
+        'Use startTask to begin a task, then completeTask to finish it with a result.',
+        'Focus on the current task below. Previous tasks are summarized for context.',
+        'Continue until all tasks are completed.',
       ].join('\n'),
     });
 
@@ -354,58 +354,45 @@ export function defDynamicTaskList(ctx: PromptContext): void {
       });
     }
 
-    // Show current in-progress or next pending task
+    // Add information about upcoming tasks (not including current)
     if (!allCompleted) {
-      let currentTaskMessage = '';
-
-      if (inProgress.length > 0) {
-        const task = state.tasks.get(inProgress[0])!;
-        currentTaskMessage = [
-          `Current Task (IN PROGRESS):`,
-          `[${task.id}] ${task.description}`,
-          '',
-          'Complete this task using completeTask before moving to the next one.',
-        ].join('\n');
-      } else if (pending.length > 0) {
-        const task = state.tasks.get(pending[0])!;
-        currentTaskMessage = [
-          `Next Task (PENDING):`,
-          `[${task.id}] ${task.description}`,
-          '',
-          'Start this task using startTask, then complete it with completeTask.',
-        ].join('\n');
-      }
-
-      // Show remaining pending tasks (not including the current one)
       const remainingPending = pending.slice(inProgress.length === 0 ? 1 : 0);
       if (remainingPending.length > 0) {
         const upcomingList = remainingPending
           .map(id => {
             const task = state.tasks.get(id)!;
-            return `○ [${task.id}] ${task.description}`;
+            return `${task.id}. ${task.description}`;
           })
           .join('\n');
 
-        currentTaskMessage += `\n\nUpcoming tasks (${remainingPending.length}):\n${upcomingList}`;
+        newMessages.push({
+          name: 'system',
+          content: `Upcoming tasks:\n${upcomingList}`,
+        });
+      }
+    }
+
+    // Add current task prompt (simple and direct like defTaskList)
+    if (!allCompleted) {
+      let currentTask: DynamicTask | undefined;
+
+      if (inProgress.length > 0) {
+        currentTask = state.tasks.get(inProgress[0])!;
+      } else if (pending.length > 0) {
+        currentTask = state.tasks.get(pending[0])!;
       }
 
-      currentTaskMessage += `\n\nProgress: ${completed}/${total} tasks completed`;
-      currentTaskMessage += '\n\n⚠️ YOU MUST CONTINUE - Not all tasks are completed!';
-
-      newMessages.push({
-        name: 'user',
-        content: currentTaskMessage,
-      });
+      if (currentTask) {
+        newMessages.push({
+          name: 'user',
+          content: `[Task ${completed + 1}/${total}] ${currentTask.description}`,
+        });
+      }
     } else {
       // All tasks completed - allow finishing
       newMessages.push({
         name: 'user',
-        content: [
-          '✅ All tasks completed successfully!',
-          `Total: ${total}/${total} tasks completed`,
-          '',
-          'You may now provide a final summary of what was accomplished.',
-        ].join('\n'),
+        content: `All ${total} tasks completed successfully. Provide a brief summary.`,
       });
     }
 

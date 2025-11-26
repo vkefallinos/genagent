@@ -177,12 +177,24 @@ interface DynamicTask {
 
 ## Automatic Context Management
 
-The dynamic task list system automatically:
+The dynamic task list system automatically manages the conversation context to ensure all tasks are completed:
 
-1. **Shows task list status**: Before each agent turn, the current task list state is injected as context
-2. **Tracks progress**: Maintains counts of completed, in-progress, and pending tasks
-3. **Provides tool information**: Reminds the agent of available tools
-4. **Updates in real-time**: The UI shows tasks being created and completed
+1. **Replaces message history**: After tasks are created, the system completely replaces the message history (like `defTaskList`) to keep the agent focused
+2. **Shows focused context**: Each turn shows only:
+   - System instructions about task completion requirements
+   - Summaries of completed tasks for context
+   - Current task that needs attention (in-progress or next pending)
+   - Remaining upcoming tasks
+   - Progress indicator and continuation warnings
+3. **Enforces completion**: Adds strong warnings ("YOU MUST CONTINUE") until all tasks are marked as completed
+4. **Prevents early termination**: Only allows the agent to finish once all tasks show status "completed"
+5. **Updates in real-time**: The UI shows tasks being created and completed
+
+**How it works:**
+- **First turn**: Original user prompt is preserved so the agent can see initial instructions
+- **After first task created**: Message history is completely replaced with focused task context
+- **Each subsequent turn**: Shows only relevant information (not full conversation history)
+- **Final turn**: Once all tasks are completed, allows agent to provide a summary
 
 ## Example Workflows
 
@@ -259,11 +271,13 @@ await runPrompt(
 
 1. **Start tasks before completing**: Use `startTask` to mark a task as in-progress before working on it
 2. **Provide detailed results**: When completing tasks, provide comprehensive results for context
-3. **Use getTaskList frequently**: Check task status regularly to stay oriented
-4. **Be strategic with updates**: Update task descriptions when you discover better approaches
-5. **Clean up unnecessary tasks**: Delete tasks that are no longer relevant
-6. **Create granular tasks**: Break complex work into smaller, manageable tasks
-7. **Add tasks as you discover them**: Don't try to plan everything upfront
+3. **Create tasks early**: The agent should create all initial tasks in the first turn before starting work
+4. **Work sequentially**: Complete one task before starting the next to maintain focus
+5. **Be strategic with updates**: Update task descriptions when you discover better approaches
+6. **Clean up unnecessary tasks**: Delete tasks that are no longer relevant (only pending tasks)
+7. **Create granular tasks**: Break complex work into smaller, manageable tasks
+8. **Add tasks as you discover them**: Don't try to plan everything upfront - add new tasks during execution
+9. **Trust the system**: The context management will keep the agent focused on completion
 
 ## Error Handling
 

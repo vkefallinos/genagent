@@ -85,12 +85,16 @@ export function convertToolsToAIFormat(
           args,
           result: undefined as any,
           error: undefined as string | undefined,
+          subagentState: undefined as any,
         };
         state.toolCalls.push(toolCall);
         onStateUpdate();
 
         try {
-          const result = await t.execute(args);
+          // If this is an agent tool, pass toolCall and onStateUpdate to it
+          const result = t.isAgent
+            ? await t.execute(args, toolCall, onStateUpdate)
+            : await t.execute(args);
           toolCall.result = result;
           onStateUpdate();
           return result;

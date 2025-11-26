@@ -75,7 +75,9 @@ export function createContext(
         name,
         description,
         schema: inputSchema,
-        execute: async (args: z.infer<T>) => {
+        isAgent: true,
+        agentOptions: options,
+        execute: async (args: z.infer<T>, currentToolCall?: any, parentOnStateUpdate?: () => void) => {
           // Dynamically import runPrompt to avoid circular dependency
           const { runPrompt } = await import('./index.js');
 
@@ -92,6 +94,18 @@ export function createContext(
             return prompt;
           };
 
+          // Initialize subagent state in the tool call
+          if (currentToolCall) {
+            currentToolCall.subagentState = {
+              messages: [],
+              tools: [],
+              currentPrompt: '',
+              toolCalls: [],
+              label: `agent-${name}`,
+              validationAttempts: [],
+            };
+          }
+
           // Merge default model with agent options
           const runOptions = {
             model: options?.model || 'gpt-4o-mini',
@@ -99,6 +113,8 @@ export function createContext(
             system: options?.system,
             plugins: options?.plugins,
             label: `agent-${name}`,
+            parentOnStateUpdate,
+            parentState: currentToolCall?.subagentState,
           };
 
           // Run the agent and return its result

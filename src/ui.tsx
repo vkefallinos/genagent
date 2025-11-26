@@ -15,6 +15,158 @@ import {
   executeAgent,
 } from './agent-executor.js';
 
+// Save state to file
+async function saveStateToFile(currentState: AgentState) {
+  if (!currentState.label) return;
+
+  try {
+    const dir = '.genagent';
+    await mkdir(dir, { recursive: true });
+
+    const filePath = join(dir, `${currentState.label}.json`);
+    await writeFile(filePath, JSON.stringify(currentState, null, 2), 'utf-8');
+  } catch (error) {
+    console.error('Failed to save state to file:', error);
+  }
+}
+
+/**
+ * Core agent execution logic extracted from AgentCLI component
+ * This can be called directly without React rendering for subagents
+ */
+export async function executePromptLogic<T extends z.ZodSchema = z.ZodAny>(
+  promptFn: (ctx: PromptContext) => Promise<string> | string,
+  model: string,
+  options: {
+    responseSchema?: T;
+    system?: string[];
+    label?: string;
+    plugins?: any[];
+    parentOnStateUpdate?: () => void;
+    parentState?: AgentState;
+  } = {}
+): Promise<T extends z.ZodSchema ? z.infer<T> : any> {
+  const { responseSchema, system, label, plugins, parentOnStateUpdate, parentState } = options;
+  const isSubagent = !!parentOnStateUpdate && !!parentState;
+
+  const messages: MessageContent[] = [];
+  const tools: ToolDefinition[] = [];
+  const hooks: MessageHistoryHook[] = [];
+
+  // Create a mutable state object for agent execution
+  let mutableState: AgentState | null = null;
+
+  try {
+    // Create context and execute prompt function
+    const ctx = createContext(messages, tools, hooks);
+
+    // Load plugins if provided
+    const pluginSystemPrompts = plugins ? loadPlugins(ctx, plugins) : [];
+
+    const promptResult = await promptFn(ctx);
+
+    // Initialize mutable state object
+    // If this is a subagent, use the provided parent state; otherwise create new state
+    if (isSubagent && parentState) {
+      // Use the parent-provided state (which is actually the subagent's own state)
+      mutableState = parentState;
+      // Update it with current execution info
+      mutableState.messages = [...messages];
+      mutableState.tools = [...tools];
+      mutableState.currentPrompt = promptResult;
+    } else {
+      mutableState = {
+        messages: [...messages],
+        tools: [...tools],
+        currentPrompt: promptResult,
+        toolCalls: [],
+        label,
+        validationAttempts: [],
+      };
+    }
+
+    // Update state callback that references mutableState
+    const updateMutableState = () => {
+      if (isSubagent && parentOnStateUpdate) {
+        // Use parent's update callback when in subagent mode
+        parentOnStateUpdate();
+      }
+      // Note: for non-subagents called directly, there's no setState to call
+      // The caller (AgentCLI component) will handle state updates
+    };
+
+    // Update state with prompt and messages
+    updateMutableState();
+
+    // Resolve model alias
+    const resolvedModel = resolveModelAlias(model);
+    const [provider, modelId] = resolvedModel.split(':');
+
+    if (!provider || !modelId) {
+      throw new Error('Model must be in format "provider:modelId" (e.g., "openai:gpt-4")');
+    }
+
+    // Load model instance
+    const modelInstance = await loadModelInstance(provider, modelId);
+
+    // Convert tools to AI SDK format
+    const aiTools = convertToolsToAIFormat(tools, mutableState, updateMutableState);
+
+    // Add schema instructions to system prompts if responseSchema is provided
+    const systemPrompts = [
+      ...pluginSystemPrompts,
+      ...(system ? system : [])
+    ];
+    if (responseSchema) {
+      systemPrompts.push(createSchemaInstructions(responseSchema));
+    }
+
+    // Build conversation messages
+    const transformedMessages = applyMessageHooks([...messages], hooks);
+    const conversationMessages = buildConversationMessages(messages, hooks, promptResult);
+
+    // Execute agent
+    const finalResponse = await executeAgent({
+      modelInstance,
+      systemPrompts,
+      conversationMessages,
+      aiTools,
+      responseSchema,
+      state: mutableState,
+      hooks,
+      promptResult,
+      transformedMessages,
+      onStateUpdate: updateMutableState,
+    });
+
+    // Update state with response and clear streaming text
+    // Only set response if not a subagent (subagent returns result via tool execution)
+    if (!isSubagent) {
+      mutableState.response = finalResponse;
+      mutableState.streamingText = undefined;
+      await saveStateToFile(mutableState);
+    } else {
+      // For subagents, just clear streaming text
+      mutableState.streamingText = undefined;
+      if (parentOnStateUpdate) {
+        parentOnStateUpdate();
+      }
+    }
+
+    return finalResponse;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    // Use mutableState if it exists
+    if (mutableState && !isSubagent) {
+      mutableState.error = errorMessage;
+      await saveStateToFile(mutableState);
+    }
+
+    throw error;
+  }
+}
+
 interface MessageModalProps {
   state: AgentState;
   messageIndex: number;
@@ -323,26 +475,6 @@ export const AgentCLI = <T extends z.ZodSchema = z.ZodAny,>(props: AgentCLIProps
 
   const [isExecuting, setIsExecuting] = useState(false);
 
-  // Callback to trigger UI updates
-  const updateState = () => {
-    setState((prev) => ({ ...prev }));
-  };
-
-  // Save state to file
-  const saveStateToFile = async (currentState: AgentState) => {
-    if (!currentState.label) return;
-
-    try {
-      const dir = '.genagent';
-      await mkdir(dir, { recursive: true });
-
-      const filePath = join(dir, `${currentState.label}.json`);
-      await writeFile(filePath, JSON.stringify(currentState, null, 2), 'utf-8');
-    } catch (error) {
-      console.error('Failed to save state to file:', error);
-    }
-  };
-
   // Execute the agent
   useEffect(() => {
     if (isExecuting) return;
@@ -431,7 +563,7 @@ export const AgentCLI = <T extends z.ZodSchema = z.ZodAny,>(props: AgentCLIProps
         mutableState.response = finalResponse;
         mutableState.streamingText = undefined;
         setState({ ...mutableState });
-        saveStateToFile(mutableState);
+        await saveStateToFile(mutableState);
 
         // Wait a bit to show final state
         await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -446,7 +578,7 @@ export const AgentCLI = <T extends z.ZodSchema = z.ZodAny,>(props: AgentCLIProps
         const errorState = mutableState || state;
         errorState.error = errorMessage;
         setState({ ...errorState });
-        saveStateToFile(errorState);
+        await saveStateToFile(errorState);
 
         // Wait a bit to show error
         await new Promise((resolve) => setTimeout(resolve, 2000));

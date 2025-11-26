@@ -38,6 +38,20 @@ export async function runPrompt<T extends z.ZodSchema = z.ZodAny>(
   promptFn: (ctx: PromptContext) => Promise<string> | string,
   options: RunPromptOptions & { responseSchema?: T }
 ): Promise<T extends z.ZodSchema ? z.infer<T> : any> {
+  // If this is a subagent (has parentOnStateUpdate), execute directly without rendering
+  if (options.parentOnStateUpdate && options.parentState) {
+    const { executePromptLogic } = await import('./ui.js');
+    return executePromptLogic(promptFn, options.model, {
+      responseSchema: options.responseSchema,
+      system: options.system,
+      label: options.label,
+      plugins: options.plugins,
+      parentOnStateUpdate: options.parentOnStateUpdate,
+      parentState: options.parentState,
+    });
+  }
+
+  // For top-level agents, use React component with render
   return new Promise((resolve, reject) => {
     const element = React.createElement(AgentCLI, {
       promptFn,
@@ -47,14 +61,12 @@ export async function runPrompt<T extends z.ZodSchema = z.ZodAny>(
       label: options.label,
       plugins: options.plugins,
       onComplete: (result: any) => {
-        // Unmount and resolve
         if (appInstance) {
           appInstance.unmount();
         }
         resolve(result);
       },
       onError: (error: Error) => {
-        // Unmount and reject
         if (appInstance) {
           appInstance.unmount();
         }

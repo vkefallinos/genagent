@@ -7,7 +7,7 @@
 import { PromptContext } from '../src/types.js';
 import { z } from 'zod';
 
-export const promptFn = async ({ defMessage, def, defTool, $ }: PromptContext) => {
+export default async ({ defMessage, def, defTool, $ }: PromptContext) => {
   defMessage('user', 'What is the capital of France?');
 
   defTool(

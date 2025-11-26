@@ -17,14 +17,14 @@ export async function main() {
     console.log('');
     console.log('Arguments:');
     console.log('  <file>           Path to a TypeScript or JavaScript file exporting:');
-    console.log('                   - promptFn: async function that accepts context');
+    console.log('                   - Default export or promptFn: async function');
     console.log('                   - options: RunPromptOptions with model property');
     console.log('');
     console.log('Example:');
     console.log('  genagent run ./my-agent.ts');
     console.log('');
     console.log('Example file (my-agent.ts):');
-    console.log('  export const promptFn = async ({ $ }) => {');
+    console.log('  export default async ({ $ }) => {');
     console.log('    return $`Hello World`;');
     console.log('  };');
     console.log('');
@@ -50,17 +50,32 @@ export async function main() {
     const module = await import(resolvedPath);
 
     // Extract the promptFn and options from the module
-    const promptFn = module.promptFn || module.default?.promptFn;
-    const options = module.options || module.default?.options;
+    // promptFn can be:
+    // - Named export: export const promptFn = ...
+    // - Default export function: export default async ({ $ }) => ...
+    // - Nested in default: export default { promptFn, options }
+    let promptFn = module.promptFn;
+    if (!promptFn && typeof module.default === 'function') {
+      promptFn = module.default;
+    }
+    if (!promptFn && module.default?.promptFn) {
+      promptFn = module.default.promptFn;
+    }
+
+    // options can be a named export or nested in default
+    let options = module.options;
+    if (!options && module.default?.options) {
+      options = module.default.options;
+    }
 
     if (!promptFn || !options) {
       console.error(
-        'Error: The exported module must have "promptFn" and "options" properties.'
+        'Error: The module must export a promptFn (as default or named export) and options.'
       );
       console.error('');
       console.error('Example export:');
       console.error('');
-      console.error('export const promptFn = async ({ $ }) => {');
+      console.error('export default async ({ $ }) => {');
       console.error('  return $`Hello World`;');
       console.error('};');
       console.error('');

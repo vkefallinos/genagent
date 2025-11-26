@@ -6,7 +6,7 @@
 
 import { PromptContext } from '../src/types.js';
 
-export const promptFn = async ({ defMessage, def, $ }: PromptContext) => {
+export default async ({ defMessage, def, $ }: PromptContext) => {
   defMessage('user', 'Hello! What is 2 + 2?');
   def('OPERATION', 'basic arithmetic');
 

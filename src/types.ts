@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { Plugin } from './plugins/types.js';
-import type { Task } from './task-list.js';
+import type { Task, TaskListOptions } from './task-list.js';
 
 export interface ToolDefinition {
   name: string;
@@ -51,7 +51,7 @@ export interface PromptContext {
     options?: AgentOptions
   ) => void;
   defHook: (hook: MessageHistoryHook) => void;
-  defTaskList: (tasks: Task[]) => void;
+  defTaskList: (tasksOrOptions: Task[] | TaskListOptions) => void;
   defDynamicTaskList: () => void;
   $: (strings: TemplateStringsArray, ...values: any[]) => string;
 }

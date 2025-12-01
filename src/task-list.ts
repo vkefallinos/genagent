@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import type { PromptContext, MessageContent } from './types.js';
+import { resolveModelAlias, loadModelInstance } from './agent-executor.js';
+import { streamText } from 'ai';
 
 /**
  * Task definition with prompt and validation function
@@ -18,13 +20,82 @@ export interface Task {
 }
 
 /**
+ * Configuration for conversation history compaction
+ */
+export interface CompactionConfig {
+  /**
+   * Template for the compaction prompt.
+   * Use <TASK_HISTORY> placeholder which will be replaced with the task's message history.
+   */
+  prompt: string;
+
+  /**
+   * Model to use for compaction (can be alias or full provider:model string)
+   */
+  model: string;
+}
+
+/**
+ * Options for configuring the task list system
+ */
+export interface TaskListOptions {
+  /**
+   * Array of tasks to execute sequentially
+   */
+  tasks: Task[];
+
+  /**
+   * Optional compaction configuration for reducing conversation history
+   */
+  compaction?: CompactionConfig;
+}
+
+/**
  * Internal state for managing task list execution
  */
 interface TaskListState {
   tasks: Task[];
   currentTaskIndex: number;
-  completedTasks: Array<{ task: string; result: string }>;
+  completedTasks: Array<{ task: string; result: string; compactedHistory?: string }>;
   validationFeedback?: string;
+  compactionConfig?: CompactionConfig;
+  originalMessages: MessageContent[];
+}
+
+/**
+ * Compacts conversation history using a specified model
+ */
+async function compactHistory(
+  messages: MessageContent[],
+  config: CompactionConfig
+): Promise<string> {
+  try {
+    // Format messages into a readable history string
+    const historyText = messages
+      .map((m) => `[${m.name}]: ${m.content}`)
+      .join('\n\n');
+
+    // Replace placeholder in prompt template
+    const compactionPrompt = config.prompt.replace('<TASK_HISTORY>', historyText);
+
+    // Resolve model alias and load model instance
+    const resolvedModel = resolveModelAlias(config.model);
+    const [provider, modelId] = resolvedModel.split(':');
+    const modelInstance = await loadModelInstance(provider, modelId);
+
+    // Call the model to compact the history
+    const result = await streamText({
+      model: modelInstance,
+      messages: [{ role: 'user', content: compactionPrompt }],
+      maxSteps: 1,
+    });
+
+    return await result.text;
+  } catch (error) {
+    // If compaction fails, return a fallback summary
+    console.error('Compaction failed:', error);
+    return `Task completed with ${messages.length} messages. Compaction failed.`;
+  }
 }
 
 /**
@@ -35,28 +106,35 @@ interface TaskListState {
  * - Uses message history hooks to keep only task summaries (description + result)
  * - Shows the LLM the current task and upcoming tasks
  * - Validates task results and provides feedback for corrections
+ * - Optionally compacts conversation history using a small model
  *
  * @param ctx - The prompt context to register tools and hooks
- * @param tasks - Array of tasks with prompts and validation functions
+ * @param tasksOrOptions - Array of tasks or TaskListOptions with compaction config
  *
  * @example
  * ```typescript
  * await runPrompt(
  *   async ({ defTaskList, $ }) => {
- *     defTaskList([
- *       {
- *         task: 'Calculate 5 + 3',
- *         validation: (result) => {
- *           if (result !== '8') return 'Incorrect. Please recalculate.';
+ *     defTaskList({
+ *       tasks: [
+ *         {
+ *           task: 'Calculate 5 + 3',
+ *           validation: (result) => {
+ *             if (result !== '8') return 'Incorrect. Please recalculate.';
+ *           }
+ *         },
+ *         {
+ *           task: 'Multiply the previous result by 2',
+ *           validation: (result) => {
+ *             if (result !== '16') return 'Incorrect. The answer should be 16.';
+ *           }
  *         }
- *       },
- *       {
- *         task: 'Multiply the previous result by 2',
- *         validation: (result) => {
- *           if (result !== '16') return 'Incorrect. The answer should be 16.';
- *         }
+ *       ],
+ *       compaction: {
+ *         prompt: '<TASK_HISTORY> Compact what happened and obvious result of this task',
+ *         model: 'small'
  *       }
- *     ]);
+ *     });
  *
  *     return $`Complete all tasks using the finishTask tool.`;
  *   },
@@ -66,8 +144,15 @@ interface TaskListState {
  */
 export function defTaskList(
   ctx: PromptContext,
-  tasks: Task[]
+  tasksOrOptions: Task[] | TaskListOptions
 ): void {
+  // Support both old array format and new options format for backwards compatibility
+  const options: TaskListOptions = Array.isArray(tasksOrOptions)
+    ? { tasks: tasksOrOptions }
+    : tasksOrOptions;
+
+  const { tasks, compaction } = options;
+
   if (tasks.length === 0) {
     throw new Error('Task list must contain at least one task');
   }
@@ -77,6 +162,8 @@ export function defTaskList(
     currentTaskIndex: 0,
     completedTasks: [],
     validationFeedback: undefined,
+    compactionConfig: compaction,
+    originalMessages: [],
   };
 
   // Define the finishTask tool
@@ -99,10 +186,24 @@ export function defTaskList(
       }
 
       // Task completed successfully
+      let compactedHistory: string | undefined;
+
+      // If compaction is configured, compact the conversation history for this task
+      if (state.compactionConfig && state.originalMessages.length > 0) {
+        compactedHistory = await compactHistory(
+          state.originalMessages,
+          state.compactionConfig
+        );
+      }
+
       state.completedTasks.push({
         task: currentTask.task,
         result,
+        compactedHistory,
       });
+
+      // Clear the original messages for the next task
+      state.originalMessages = [];
 
       // Clear any previous validation feedback
       state.validationFeedback = undefined;
@@ -121,6 +222,16 @@ export function defTaskList(
 
   // Add a hook to manage message history
   ctx.defHook((messages) => {
+    // Store original messages for compaction before transforming them
+    if (state.compactionConfig) {
+      // Only add messages that are part of the current task (after system messages)
+      const relevantMessages = messages.filter(
+        m => !m.content.includes('TASK LIST MODE ACTIVE') &&
+             !m.content.includes('You are working through a task list')
+      );
+      state.originalMessages = relevantMessages;
+    }
+
     const newMessages: MessageContent[] = [];
 
     // Add system instructions about the task list
@@ -138,7 +249,13 @@ export function defTaskList(
     // Add summaries of completed tasks
     if (state.completedTasks.length > 0) {
       const taskSummaries = state.completedTasks
-        .map((ct, i) => `Task ${i + 1}: ${ct.task}\nResult: ${ct.result}`)
+        .map((ct, i) => {
+          // Use compacted history if available, otherwise use simple task + result
+          if (ct.compactedHistory) {
+            return `Task ${i + 1}: ${ct.task}\n${ct.compactedHistory}`;
+          }
+          return `Task ${i + 1}: ${ct.task}\nResult: ${ct.result}`;
+        })
         .join('\n\n');
 
       newMessages.push({
